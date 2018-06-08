@@ -4,8 +4,8 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from slicedimage import ImageFormat, TileSet, Tile
-from slicedimage.io import resolve_path_or_url, Writer
+from slicedimage import TileSet, Tile
+from slicedimage.io import resolve_path_or_url
 
 from starfish.constants import Coordinates, Indices
 from .image import ImageStack
@@ -61,21 +61,30 @@ class Stack:
         return stack
 
     # TODO should this thing write npy?
-    def write(self, dir_name):
-        self._write_stack(dir_name)
+    def write(self, dir_name: str) -> None:
+        """
+        Write contents of stack to disk.
+
+        Parameters
+        ----------
+        dir_name : str
+            directory in which to write numpy and json files that specify the stack data
+
+        """
+        self._write_stack()
         self._write_aux(dir_name)
         self._write_metadata(dir_name)
 
-    def _write_metadata(self, dir_name):
+    def _write_metadata(self, dir_name) -> None:
         with open(os.path.join(dir_name, 'experiment.json'), 'w') as outfile:
             json.dump(self.org, outfile, indent=4)
 
-    def _write_stack(self, dir_name):
-        stack_path = os.path.join(dir_name, "hybridization.json")
+    def _write_stack(self) -> None:
+        stack_path = "hybridization.json"
         self.image.write(stack_path)
         self.org['hybridization_images'] = stack_path
 
-    def _write_aux(self, dir_name):
+    def _write_aux(self, dir_name) -> None:
         for aux_key, aux_data in self.org['auxiliary_images'].items():
             self.auxiliary_images[aux_key].write(os.path.join(dir_name, aux_data))
 
