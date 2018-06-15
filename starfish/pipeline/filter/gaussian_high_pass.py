@@ -1,6 +1,6 @@
 import argparse
 from functools import partial
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -57,7 +57,7 @@ class GaussianHighPass(FilterAlgorithmBase):
 
         return res
 
-    def filter(self, stack: ImageStack, in_place: bool=True) -> None:
+    def filter(self, stack: ImageStack, in_place: bool=True) -> Optional[ImageStack]:
         """Perform filtering of an image stack and all contained aux images.
 
         Parameters
@@ -77,3 +77,4 @@ class GaussianHighPass(FilterAlgorithmBase):
         result = stack.apply(high_pass, in_place=in_place)
         if not in_place:
             return result
+        return None

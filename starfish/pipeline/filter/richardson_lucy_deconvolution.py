@@ -100,3 +100,4 @@ class DeconvolvePSF(FilterAlgorithmBase):
         result = stack.apply(func, in_place=in_place)
         if not in_place:
             return result
+        return None

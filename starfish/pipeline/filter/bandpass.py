@@ -2,6 +2,7 @@ from functools import partial
 from typing import Optional
 
 from trackpy import bandpass
+import numpy as np
 
 from starfish.image import ImageStack
 from ._base import FilterAlgorithmBase
@@ -44,7 +45,7 @@ class Bandpass(FilterAlgorithmBase):
         group_parser.add_argument("--truncate", default=4, type=int)
 
     @staticmethod
-    def bandpass(image, lshort, llong, threshold, truncate):
+    def bandpass(image, lshort, llong, threshold, truncate) -> np.ndarray:
         """Apply a bandpass filter to remove noise and background variation
 
         Parameters
@@ -93,3 +94,4 @@ class Bandpass(FilterAlgorithmBase):
         result = stack.apply(bandpass_, verbose=self.verbose, in_place=in_place)
         if not in_place:
             return result
+        return None

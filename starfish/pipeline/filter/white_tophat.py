@@ -36,7 +36,7 @@ class WhiteTophat(FilterAlgorithmBase):
         group_parser.add_argument(
             "--disk-size", default=15, type=int, help="diameter of morphological masking disk in pixels")
 
-    def filter(self, stack: ImageStack, in_place: bool=True) -> None:
+    def filter(self, stack: ImageStack, in_place: bool=True) -> Optional[ImageStack]:
         """Perform filtering of an image stack and all contained aux images.
 
         Parameters
@@ -67,3 +67,4 @@ class WhiteTophat(FilterAlgorithmBase):
         result = stack.apply(white_tophat)
         if not in_place:
             return result
+        return None

@@ -89,3 +89,4 @@ class Clip(FilterAlgorithmBase):
         result = stack.apply(clip, is_volume=self.is_volume, verbose=self.verbose, in_place=in_place)
         if not in_place:
             return result
+        return None
