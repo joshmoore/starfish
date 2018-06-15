@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Optional
 
 from trackpy import bandpass
 
@@ -70,16 +71,25 @@ class Bandpass(FilterAlgorithmBase):
         )
         return bandpassed
 
-    def filter(self, stack: ImageStack) -> None:
-        """Perform in-place filtering of an image stack and all contained aux images.
+    def filter(self, stack: ImageStack, in_place: bool=True) -> Optional[ImageStack]:
+        """Perform filtering of an image stack and all contained aux images.
 
         Parameters
         ----------
         stack : ImageStack
             Stack to be filtered.
+        in_place : bool
+            if True, process ImageStack in-place, otherwise return a new stack
+
+        Returns
+        -------
+        Optional[ImageStack] :
+            if in-place is False, return the results of filter as a new stack
 
         """
         bandpass_ = partial(
             self.bandpass, lshort=self.lshort, llong=self.llong, threshold=self.threshold, truncate=self.truncate
         )
-        stack.apply(bandpass_, verbose=self.verbose)
+        result = stack.apply(bandpass_, verbose=self.verbose, in_place=in_place)
+        if not in_place:
+            return result
