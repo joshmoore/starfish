@@ -1,10 +1,9 @@
-from typing import Union, Tuple, Dict
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from starfish.munge import dataframe_to_multiindex
 from starfish.constants import Indices, AugmentedEnum
 
 
@@ -71,7 +70,7 @@ class IntensityTable(xr.DataArray):
 
         return cls(intensities, coords, dims, *args, **kwargs)
 
-    def save(self, filename) -> None:
+    def save(self, filename: str) -> None:
         """Save an IntensityTable as a Netcdf File
 
         Parameters
@@ -85,13 +84,17 @@ class IntensityTable(xr.DataArray):
         self.reset_index('features').to_netcdf(filename)
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, filename: str) -> "IntensityTable":
         """load an IntensityTable from Netcdf
 
         Parameters
         ----------
         filename : str
             File to load
+
+        Returns
+        -------
+        IntensityTable
 
         """
         loaded = xr.open_dataarray(filename)
