@@ -98,7 +98,7 @@ class ImageStack:
                     data = data * (dst_range / src_range)
                 warn(
                     f"Tile "
-                    f"(H: {tile.indices[Indices.HYB]} C: {tile.indices[Indices.CH]} Z: {tile.indices[Indices.Z]}) has "
+                    f"(H: {tile.indices[Constants.HYB]} C: {tile.indices[Constants.CH]} Z: {tile.indices[Constants.Z]}) has "
                     f"dtype {data.dtype}.  One or more tiles is of a larger dtype {self._data.dtype}.",
                     DataFormatWarning)
             self.set_slice(indices={Indices.HYB: h, Indices.CH: c, Indices.Z: zlayer}, data=data)
@@ -247,8 +247,8 @@ class ImageStack:
 
         Parameters
         ----------
-        indices : Mapping[Indices, Union[int, slice]],
-            Indices to select a volume to visualize. Passed to `Image.get_slice()`.
+        indices : Mapping[Constants, Union[int, slice]],
+            Constants to select a volume to visualize. Passed to `Image.get_slice()`.
             See `Image.get_slice()` for examples.
         color_map : str (default = 'gray')
             string id of a matplotlib colormap
@@ -471,7 +471,7 @@ class ImageStack:
 
         Returns
         -------
-        Optional[List[Tuple[np.ndarray, Mapping[Indices: Union[int, slice]]]]
+        Optional[List[Tuple[np.ndarray, Mapping[Constants: Union[int, slice]]]]
             If inplace is False, return the results of applying func to stored image data
         """
         mapfunc: Callable = map  # TODO: ambrosejcarr posix-compliant multiprocessing

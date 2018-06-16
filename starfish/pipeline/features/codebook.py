@@ -1,5 +1,4 @@
 import functools
-from itertools import product
 import json
 from typing import Optional, Sequence, Dict, Tuple
 from typing import Union, Iterable, List, Mapping, Any
@@ -106,6 +105,7 @@ class Codebook(xr.DataArray):
                 f'code detected that requires a hybridization value ({max_hyb}) that is greater '
                 f'than provided n_hyb: {n_hyb}')
 
+        # verify codebook structure and fields
         for code in code_array:
 
             if not isinstance(code, dict):
@@ -119,6 +119,7 @@ class Codebook(xr.DataArray):
                     f'Each entry of codebook must contain {required_fields}. Missing fields: '
                     f'{missing_fields}')
 
+        # TODO there are probably more concise ways available to build this
         # empty codebook
         code_data = cls(
             data=np.zeros((len(code_array), n_ch, n_hyb), dtype=np.uint8),
@@ -176,31 +177,32 @@ class Codebook(xr.DataArray):
             # order of codes changes here (automated sorting on the reshaping?)
             return code_distances
 
-        norm_intensities = intensities.groupby(IntensityTable.Indices.FEATURES.value).apply(
+        # normalize both the intensities and the codebook
+        norm_intensities = intensities.groupby(IntensityTable.Constants.FEATURES.value).apply(
             lambda x: x / x.sum())
         norm_codes = self.groupby(Codebook.Constants.GENE.value).apply(lambda x: x / x.sum())
 
+        # calculate pairwise euclidean distance between codes and features
         func = functools.partial(min_euclidean_distance, codes=norm_codes)
-        distances = norm_intensities.groupby(IntensityTable.Indices.FEATURES.value).apply(func)
+        distances = norm_intensities.groupby(IntensityTable.Constants.FEATURES.value).apply(func)
 
+        # calculate quality of each decoded spot
         qualities = 1 - distances.min(Codebook.Constants.GENE.value)
+        qualities_index = pd.Index(qualities)
+
+        # identify genes associated with closest codes
         closest_code_index = distances.argmin(Codebook.Constants.GENE.value)
         gene_ids = distances.indexes[
             Codebook.Constants.GENE.value].values[closest_code_index.values]
-        with_genes = self.append_multiindex_level(
-            intensities.indexes[IntensityTable.Indices.FEATURES.value], gene_ids, 'gene')
-        with_qualities = self.append_multiindex_level(with_genes, qualities, 'quality')
+        gene_index = pd.Index(gene_ids)
 
-        result = IntensityTable(
-            intensities=intensities,
-            dims=(IntensityTable.Indices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
-            coords=(
-                with_qualities,
-                intensities.indexes[Indices.CH.value],
-                intensities.indexes[Indices.HYB.value]
-            )
-        )
-        return result
+        # set new values on the intensity table in-place
+        intensities[IntensityTable.Constants.GENE.value] = (
+            IntensityTable.Constants.FEATURES.value, gene_index)
+        intensities[IntensityTable.Constants.QUALITY.value] = (
+            IntensityTable.Constants.FEATURES.value, qualities_index)
+
+        return intensities
 
     def decode_per_channel_max(self, intensities) -> IntensityTable:
 
@@ -217,25 +219,16 @@ class Codebook(xr.DataArray):
         b = view_row_as_element(max_channels.values.reshape(intensities.shape[0], -1))
 
         genes = np.empty(intensities.shape[0], dtype=object)
-        genes.fill('None')
+        genes.fill(np.nan)
 
         for i in np.arange(a.shape[0]):
             genes[np.where(a[i] == b)[0]] = codes['gene_name'][i]
-        # TODO replace me with self['gene'] = ('features', genes)
-        with_genes = self.append_multiindex_level(
-            intensities.indexes[IntensityTable.Indices.FEATURES.value],
-            genes.astype('U'),
-            'gene')
+        gene_index = pd.Index(genes)
 
-        return IntensityTable(
-            intensities=intensities,
-            dims=(IntensityTable.Indices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
-            coords=(
-                with_genes,
-                intensities.indexes[Indices.CH.value],
-                intensities.indexes[Indices.HYB.value]
-            )
-        )
+        intensities[IntensityTable.Constants.GENE.value] = (
+            IntensityTable.Constants.FEATURES.value, gene_index)
+
+        return intensities
 
     @classmethod
     def synthetic_one_hot_codebook(
@@ -271,7 +264,9 @@ class Codebook(xr.DataArray):
         # construct codewords from code
         codewords = [
             [
-                {Indices.HYB.value: h, Indices.CH.value: c, 'v': 1} for h, c in enumerate(code)
+                {
+                    Indices.HYB.value: h, Indices.CH.value: c, 'v': 1
+                } for h, c in enumerate(code)
             ] for code in codes
         ]
 

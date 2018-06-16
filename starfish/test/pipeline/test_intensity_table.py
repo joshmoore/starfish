@@ -1,29 +1,53 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
 
 from starfish.util.synthesize import _synthetic_spots
 from starfish.constants import Indices
+from starfish.munge import dataframe_to_multiindex
 from starfish.pipeline.features.intensity_table import IntensityTable
 
 
-def test_create_trivial_intensity_table():
+@pytest.fixture(scope='function')
+def small_intensity_table():
     intensities = np.array([
         [[0, 1],
          [1, 0]],
+        [[1, 0],
+         [0, 1]],
         [[0, 0],
-         [1, 0]],
-        [[1, 1],
          [1, 1]]
     ])
-    coords = (
-        (IntensityTable.Indices.FEATURES.value, np.arange(3)),
-        (Indices.CH.value, np.arange(2)),
-        (Indices.HYB.value, np.arange(2)))
 
-    dims = (IntensityTable.Indices.FEATURES.value, Indices.CH.value, Indices.HYB.value)
-    return IntensityTable(intensities, coords, dims)
+    spot_attributes = dataframe_to_multiindex(pd.DataFrame(
+        data={
+            IntensityTable.SpotAttributes.X: [0, 1, 2],
+            IntensityTable.SpotAttributes.Y: [3, 4, 5],
+            IntensityTable.SpotAttributes.Z: [0, 0, 0],
+            IntensityTable.SpotAttributes.RADIUS: [0.1, 0.2, 0.3]
+        }
+    ))
+
+    return IntensityTable.from_spot_data(intensities, spot_attributes)
+
+
+def test_intensity_table_raises_value_error_with_wrong_input_shape(small_intensity_table):
+    pass
+
+
+def test_intensity_table_raises_value_error_with_wrong_spot_attribute_type(small_intensity_table):
+    pass
+
+
+def test_intensity_table_raises_value_error_with_missing_spot_attributes(small_intensity_table):
+    pass
+
+
+def test_intensity_table_passes_args_and_kwargs_to_xarray_constructor(small_intensity_table):
+    pass
+
 
 
 # @pytest.mark.skip('needs codebook and data generated synthetically')
