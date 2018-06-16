@@ -172,6 +172,42 @@ class Codebook(xr.DataArray):
             code_array = json.load(f)
         return cls.from_code_array(code_array, n_hyb, n_ch)
 
+    def save(self, filename: str) -> None:
+        """save a codebook to json
+
+        Notes
+        -----
+        This enforces the following typing of codebooks:
+        ch, hyb: int
+        value: float
+        gene: str
+
+        Parameters
+        ----------
+        filename : str
+            filename
+
+        """
+        code_array = []
+        for gene in self[self.Constants.GENE.value]:
+            codeword = []
+            for ch in self[Indices.CH.value]:
+                for hyb in self[Indices.HYB.value]:
+                    if self.loc[gene, ch, hyb]:
+                        codeword.append(
+                            {
+                                Indices.CH.value: int(ch),
+                                Indices.HYB.value: int(hyb),
+                                self.Constants.VALUE.value: float(self.loc[gene, ch, hyb])
+                            })
+            code_array.append({
+                self.Constants.CODEWORD.value: codeword,
+                self.Constants.GENE.value: str(gene.values)
+            })
+
+        with open(filename, 'w') as f:
+            json.dump(code_array, f)
+
     def decode_euclidean(self, intensities: IntensityTable) -> IntensityTable:
         """Assign the closest gene by euclidean distance to each feature in an intensity table
 

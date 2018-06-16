@@ -136,3 +136,16 @@ def test_synthetic_one_hot_codes_produce_one_channel_per_hyb():
     cb = Codebook.synthetic_one_hot_codebook(n_hyb=6, n_channel=4, n_codes=100)
     # sum over channels: only one should be "on"
     assert np.all(cb.sum(Indices.CH.value) == 1)
+
+
+def test_codebook_save(loaded_codebook):
+    directory = tempfile.mkdtemp()
+    filename = os.path.join(directory, 'codebook.json')
+    loaded_codebook.save(filename)
+    reloaded = Codebook.from_json(filename, n_hyb=2, n_ch=2)
+
+    assert np.array_equal(loaded_codebook, reloaded)
+    assert np.array_equal(loaded_codebook[Indices.CH.value], reloaded[Indices.CH.value])
+    assert np.array_equal(loaded_codebook[Indices.HYB.value], reloaded[Indices.HYB.value])
+    assert np.array_equal(loaded_codebook[Codebook.Constants.GENE.value].values,
+                          reloaded[Codebook.Constants.GENE.value].values)
