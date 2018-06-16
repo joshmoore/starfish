@@ -12,7 +12,7 @@ def test_one_hot_codes():
     n_channel = 3
     n_codes = 5
 
-    codes = Codebook.synthetic_one_hot_codes(n_hyb=n_hyb, n_channel=n_channel, n_codes=n_codes)
+    codes = Codebook.synthetic_one_hot_codebook(n_hyb=n_hyb, n_channel=n_channel, n_codes=n_codes)
 
     assert isinstance(codes, Codebook)
 
@@ -22,7 +22,7 @@ def test_one_hot_codes():
 
 
 def test_create_spots():
-    codes = Codebook.synthetic_one_hot_codes(4, 2, 10)
+    codes = Codebook.synthetic_one_hot_codebook(4, 2, 10)
     _ = synthesize.create_spots(codes)
 
 

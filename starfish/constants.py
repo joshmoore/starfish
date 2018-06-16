@@ -23,12 +23,9 @@ class Indices(AugmentedEnum):
     Z = 'z'
 
 
-class IntensityIndices(Enum):
+class IntensityIndices(AugmentedEnum):
     TILES = 'tiles'
     FEATURES = 'features'
 
 
-class CodebookIndices(Enum):
-    CODEWORD = 'codeword'
-    GENE_NAME = 'gene_name'
-    VALUE = 'v'
+

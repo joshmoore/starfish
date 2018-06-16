@@ -94,7 +94,7 @@ def _synthetic_spots(
         num_z: int=DEFAULT_NUM_Z,
         height: int=DEFAULT_HEIGHT,
         width: int=DEFAULT_WIDTH,
-        code_generator: Callable=Codebook.synthetic_one_hot_codes,
+        code_generator: Callable=Codebook.synthetic_one_hot_codebook,
         n_photons_background=N_PHOTONS_BACKGROUND,
         point_spread_function=POINT_SPREAD_FUNCTION,
         camera_detection_efficiency=CAMERA_DETECTION_EFFICIENCY,

@@ -21,7 +21,7 @@ class IssDecoder(DecoderAlgorithmBase):
     def decode(self, intensities, codebook, letters=('T', 'G', 'C', 'A')):
 
         # TODO ambrosejcarr: fix the rest of this function
-        return codebook.euclidean_decode(intensities)
+        return codebook.decode_euclidean(intensities)
 
         # get number of channels and hybs, as well as number of spots
         num_ch = encoded[Indices.CH.value].max() + 1
