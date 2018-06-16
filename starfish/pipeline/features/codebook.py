@@ -26,11 +26,11 @@ class Codebook(xr.DataArray):
     Constructors
     ------------
     from_code_array(code_array, n_hyb, n_ch)
-        construct a codebook from an array of codewords
+        construct a codebook from a spaceTx-spec array of codewords
     from_json(json_codebook, n_hyb, n_ch)
-        construct a codebook from a spaceTx spec-compliant json codebook
+        load a codebook from a spaceTx spec-compliant json file
     synthetic_one_hot_codebook
-        construct a codebook of raondom codes where only one channel is on per hybridization round
+        construct a codebook of random codes where only one channel is on per hybridization round
 
     Methods
     -------
@@ -50,36 +50,54 @@ class Codebook(xr.DataArray):
         GENE = 'gene_name'
         VALUE = 'v'
 
-    def __init__(
-            self, data: Union[pd.DataFrame, np.ndarray, xr.DataArray],
-            coords: Iterable[Union[pd.Index, pd.MultiIndex]],
-            *args: Tuple, **kwargs: Dict
-    ) -> None:
-        """xarray class constructor
-
-        Parameters
-        ----------
-        data : Union[pd.DataFrame, np.ndarray, xr.DataArray]
-        coords : Iterable[Union[pd.Index, pd.MultiIndex]]
-        args : Tuple
-        kwargs : Dict
-        """
-        super().__init__(data, coords, *args, **kwargs)
-
     @classmethod
-    def from_code_array(
-            cls, code_array: List[Mapping[str, Any]],
-            n_hyb: Optional[int]=None, n_ch: Optional[int]=None) -> "Codebook":
-        """
+    def _empty_codebook(cls, code_names: Sequence[str], n_ch: int, n_hyb: int):
+        """create an empty codebook of shape (code_names, n_ch, n_hyb)
 
         Parameters
         ----------
-        code_array
-        n_hyb : Optional[int]
-        n_ch : Optional[int]
+        code_names : Sequence[str]
+            the genes to be coded
+        n_ch : int
+            number of channels used to build the codes
+        n_hyb : int
+            number of hybridization rounds used to build the codes
 
         Returns
         -------
+        Codebook :
+            codebook whose values are all zero
+
+        """
+        codes_index = pd.Index(code_names, name=Codebook.Constants.GENE.value)
+        return cls(
+            data=np.zeros((codes_index.shape[0], n_ch, n_hyb), dtype=np.uint8),
+            coords=(
+                codes_index,
+                pd.Index(np.arange(n_ch), name=Indices.CH.value),
+                pd.Index(np.arange(n_hyb), name=Indices.HYB.value),
+            )
+        )
+
+    @classmethod
+    def from_code_array(
+            cls, code_array: List[Dict[str, Any]],
+            n_hyb: Optional[int]=None, n_ch: Optional[int]=None) -> "Codebook":
+        """ construct a codebook from a spaceTx-spec array of codewords
+
+        Parameters
+        ----------
+        code_array : List[Dict[str, Any]]
+            Array of dictionaries, each containing a codeword and gene_name
+        n_hyb : Optional[int]
+            The number of hybridization rounds used in the codes. Will be inferred if not provided
+        n_ch : Optional[int]
+            The number of channels used in the codes. Will be inferred if not provided
+
+        Returns
+        -------
+        Codebook :
+            Codebook with shape (genes, channels, hybridization_rounds)
 
         """
 
@@ -119,19 +137,8 @@ class Codebook(xr.DataArray):
                     f'Each entry of codebook must contain {required_fields}. Missing fields: '
                     f'{missing_fields}')
 
-        # TODO there are probably more concise ways available to build this
-        # empty codebook
-        code_data = cls(
-            data=np.zeros((len(code_array), n_ch, n_hyb), dtype=np.uint8),
-            coords=(
-                pd.Index(
-                    [d[Codebook.Constants.GENE.value] for d in code_array],
-                    name=Codebook.Constants.GENE.value
-                ),
-                pd.Index(np.arange(n_ch), name=Indices.CH.value),
-                pd.Index(np.arange(n_hyb), name=Indices.HYB.value),
-            )
-        )
+        gene_names = [w[Codebook.Constants.GENE.value] for w in code_array]
+        code_data = cls._empty_codebook(gene_names, n_ch, n_hyb)
 
         # fill the codebook
         for code_dict in code_array:
@@ -144,34 +151,60 @@ class Codebook(xr.DataArray):
         return code_data
 
     @classmethod
-    def from_json(cls, json_codebook, n_hyb, n_ch) -> "Codebook":
-        """
+    def from_json(cls, json_codebook: str, n_hyb: Optional[int], n_ch: Optional[int]) -> "Codebook":
+        """Load a codebook from a spaceTx spec-compliant json file
 
         Parameters
         ----------
-        json_codebook
-        n_hyb
-        n_ch
+        json_codebook : str
+            path to json file containing a spaceTx codebook
+        n_hyb : Optional[int]
+            The number of hybridization rounds used in the codes. Will be inferred if not provided
+        n_ch : Optional[int]
+            The number of channels used in the codes. Will be inferred if not provided
 
         Returns
         -------
+        Codebook :
+            Codebook with shape (genes, channels, hybridization_rounds)
 
         """
         with open(json_codebook, 'r') as f:
             code_array = json.load(f)
         return cls.from_code_array(code_array, n_hyb, n_ch)
 
-    @staticmethod
-    def append_multiindex_level(multiindex, data, name):
-        """stupid thing necessary because pandas doesn't do this"""
-        frame = multiindex.to_frame()
-        frame[name] = data
-        frame.set_index(name, append=True, inplace=True)
-        return frame.index
-
     def decode_euclidean(self, intensities: IntensityTable) -> IntensityTable:
+        """Assign the closest gene by euclidean distance to each feature in an intensity table
 
-        def min_euclidean_distance(observation, codes) -> np.ndarray:
+        Parameters
+        ----------
+        intensities : IntensityTable
+            features to be decoded
+
+        Returns
+        -------
+        IntensityTable :
+            intensity table containing additional data variables for gene assignments and feature
+            qualities
+
+        """
+
+        def _min_euclidean_distance(observation: xr.DataArray, codes: Codebook) -> np.ndarray:
+            """find the code with the closest euclidean distance to observation
+
+            Parameters
+            ----------
+            observation : xr.DataArray
+                2-dimensional DataArray of shape (n_ch, n_hyb)
+            codes :
+                Codebook containing codes to compare to observation
+
+            Returns
+            -------
+            np.ndarray :
+                1-d vector containing the distance of each code to observation
+
+            """
             squared_diff = (codes - observation) ** 2
             code_distances = np.sqrt(squared_diff.sum((Indices.CH, Indices.HYB)))
             # order of codes changes here (automated sorting on the reshaping?)
@@ -183,7 +216,7 @@ class Codebook(xr.DataArray):
         norm_codes = self.groupby(Codebook.Constants.GENE.value).apply(lambda x: x / x.sum())
 
         # calculate pairwise euclidean distance between codes and features
-        func = functools.partial(min_euclidean_distance, codes=norm_codes)
+        func = functools.partial(_min_euclidean_distance, codes=norm_codes)
         distances = norm_intensities.groupby(IntensityTable.Constants.FEATURES.value).apply(func)
 
         # calculate quality of each decoded spot
@@ -204,9 +237,45 @@ class Codebook(xr.DataArray):
 
         return intensities
 
-    def decode_per_channel_max(self, intensities) -> IntensityTable:
+    def decode_per_channel_max(self, intensities: IntensityTable) -> IntensityTable:
+        """decode features by comparing the per-channel max value of each feature
 
-        def view_row_as_element(array) -> np.ndarray:
+        Notes
+        -----
+        If no code matches the per-channel max of a feature, it will be assigned np.nan instead
+        of a gene value
+
+        Parameters
+        ----------
+        intensities : IntensityTable
+            features to be decoded
+
+        Returns
+        -------
+        IntensityTable :
+            intensity table containing additional data variables for gene assignments
+
+        """
+
+        def _view_row_as_element(array: np.ndarray) -> np.ndarray:
+            """view an entire code as a single element
+
+            This view allows vectors (codes) to be compared for equality without need for multiple
+            comparisons by casting the data in each code to a structured dtype that registers as
+            a single value
+
+            Parameters
+            ----------
+            array : np.ndarray
+                2-dimensional numpy array of shape (n_observations, (n_ch * n_hyb)) where
+                observations may be either features or codes.
+
+            Returns
+            -------
+            np.ndarray :
+                1-dimensional vector of shape n_observations
+
+            """
             nrows, ncols = array.shape
             dtype = {'names': ['f{}'.format(i) for i in range(ncols)],
                      'formats': ncols * [array.dtype]}
@@ -215,8 +284,8 @@ class Codebook(xr.DataArray):
         max_channels = intensities.argmax(Indices.CH.value)
         codes = self.argmax(Indices.CH.value)
 
-        a = view_row_as_element(codes.values.reshape(self.shape[0], -1))
-        b = view_row_as_element(max_channels.values.reshape(intensities.shape[0], -1))
+        a = _view_row_as_element(codes.values.reshape(self.shape[0], -1))
+        b = _view_row_as_element(max_channels.values.reshape(intensities.shape[0], -1))
 
         genes = np.empty(intensities.shape[0], dtype=object)
         genes.fill(np.nan)
@@ -254,7 +323,7 @@ class Codebook(xr.DataArray):
 
         """
 
-        # TODO clean up this code, generate Codebooks directly
+        # TODO clean up this code, generate Codebooks directly using _empty_codebook
         # construct codes
         # this can be slow when n_codes is large and n_codes ~= n_possible_codes
         codes = set()
