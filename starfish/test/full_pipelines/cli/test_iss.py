@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from starfish.util import clock
+import pytest
 
 
 def get_codebook(tempdir):
@@ -17,7 +18,8 @@ def get_codebook(tempdir):
         return os.path.join(tempdir, "formatted", document['codebook'])
 
 
-@unittest.skip('long test, failing for unknown reasons (test with synthetic data!)')
+@pytest.mark.skip('long test')
+# @unittest.skip('long test, failing for unknown reasons (test with synthetic data!)')
 class TestWithIssData(unittest.TestCase):
     SUBDIRS = (
         "raw",
