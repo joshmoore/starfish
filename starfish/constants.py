@@ -23,9 +23,4 @@ class Indices(AugmentedEnum):
     Z = 'z'
 
 
-class IntensityIndices(AugmentedEnum):
-    TILES = 'tiles'
-    FEATURES = 'features'
-
-
 

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from starfish.constants import Indices, IntensityIndices, AugmentedEnum
+from starfish.constants import Indices, AugmentedEnum
 from starfish.pipeline.features.intensity_table import IntensityTable
 
 
@@ -176,24 +176,24 @@ class Codebook(xr.DataArray):
             # order of codes changes here (automated sorting on the reshaping?)
             return code_distances
 
-        norm_intensities = intensities.groupby(IntensityIndices.FEATURES.value).apply(
+        norm_intensities = intensities.groupby(IntensityTable.Indices.FEATURES.value).apply(
             lambda x: x / x.sum())
         norm_codes = self.groupby(Codebook.Constants.GENE.value).apply(lambda x: x / x.sum())
 
         func = functools.partial(min_euclidean_distance, codes=norm_codes)
-        distances = norm_intensities.groupby(IntensityIndices.FEATURES.value).apply(func)
+        distances = norm_intensities.groupby(IntensityTable.Indices.FEATURES.value).apply(func)
 
         qualities = 1 - distances.min(Codebook.Constants.GENE.value)
         closest_code_index = distances.argmin(Codebook.Constants.GENE.value)
         gene_ids = distances.indexes[
             Codebook.Constants.GENE.value].values[closest_code_index.values]
         with_genes = self.append_multiindex_level(
-            intensities.indexes[IntensityIndices.FEATURES.value], gene_ids, 'gene')
+            intensities.indexes[IntensityTable.Indices.FEATURES.value], gene_ids, 'gene')
         with_qualities = self.append_multiindex_level(with_genes, qualities, 'quality')
 
         result = IntensityTable(
             intensities=intensities,
-            dims=(IntensityIndices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
+            dims=(IntensityTable.Indices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
             coords=(
                 with_qualities,
                 intensities.indexes[Indices.CH.value],
@@ -223,13 +223,13 @@ class Codebook(xr.DataArray):
             genes[np.where(a[i] == b)[0]] = codes['gene_name'][i]
         # TODO replace me with self['gene'] = ('features', genes)
         with_genes = self.append_multiindex_level(
-            intensities.indexes[IntensityIndices.FEATURES.value],
+            intensities.indexes[IntensityTable.Indices.FEATURES.value],
             genes.astype('U'),
             'gene')
 
         return IntensityTable(
             intensities=intensities,
-            dims=(IntensityIndices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
+            dims=(IntensityTable.Indices.FEATURES.value, Indices.CH.value, Indices.HYB.value),
             coords=(
                 with_genes,
                 intensities.indexes[Indices.CH.value],

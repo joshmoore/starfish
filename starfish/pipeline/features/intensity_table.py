@@ -5,14 +5,19 @@ import pandas as pd
 import xarray as xr
 
 from starfish.munge import dataframe_to_multiindex
-from starfish.constants import Indices, IntensityIndices
+from starfish.constants import Indices, AugmentedEnum
 
 
 class IntensityTable(xr.DataArray):
 
+    class Indices(AugmentedEnum):
+        TILES = 'tiles'
+        FEATURES = 'features'
+
     # todo coords accepts super complicated types
     def __init__(self, intensities, coords=None, dims: Tuple[str, ...]=None,
-                 name: Union[str, Tuple[str]]=None, attrs: Dict=None, encoding: Dict=None, fastpath=False) -> None:
+                 name: Union[str, Tuple[str]]=None, attrs: Dict=None, encoding: Dict=None,
+                 fastpath=False) -> None:
         """Table to store feature (spot, pixel) intensities and associated metadata across image tiles
 
         Parameters
@@ -46,10 +51,13 @@ class IntensityTable(xr.DataArray):
 
         # TODO ambrosejcarr: make some checks here on the data
         super().__init__(
-            data=intensities, coords=coords, dims=dims, name=name, attrs=attrs, encoding=encoding, fastpath=fastpath)
+            data=intensities, coords=coords, dims=dims, name=name, attrs=attrs, encoding=encoding,
+            fastpath=fastpath)
 
     @classmethod
-    def from_spot_data(cls, intensity_data: pd.DataFrame, tile_data: pd.DataFrame, feature_attributes: pd.DataFrame):
+    def from_spot_data(
+            cls, intensity_data: pd.DataFrame, tile_data: pd.DataFrame,
+            feature_attributes: pd.DataFrame) -> "IntensityTable":
 
         coords = (
             dataframe_to_multiindex(tile_data[[Indices.CH, Indices.HYB]]),
@@ -59,10 +67,10 @@ class IntensityTable(xr.DataArray):
         intensity_table = cls(
             intensities=intensity_data.values,
             coords=coords,
-            dims=(IntensityIndices.TILES.value, IntensityIndices.FEATURES.value)
+            dims=(IntensityTable.Indices.TILES.value, IntensityTable.Indices.FEATURES.value)
         )
 
-        return intensity_table.unstack(IntensityIndices.TILES.value)
+        return intensity_table.unstack(IntensityTable.Indices.TILES.value)
 
     def save(self, filename) -> None:
         """Save an IntensityTable as a Netcdf File
@@ -73,8 +81,8 @@ class IntensityTable(xr.DataArray):
             Name of Netcdf file
 
         """
-        # TODO when https://github.com/pydata/xarray/issues/1077 (support for multiindex serliazation) is merged, remove
-        # this reset_index() call and simplify load, below
+        # TODO when https://github.com/pydata/xarray/issues/1077 (support for multiindex
+        # serliazation) is merged, remove this reset_index() call and simplify load, below
         self.reset_index('features').to_netcdf(filename)
 
     @classmethod
