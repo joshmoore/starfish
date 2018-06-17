@@ -42,6 +42,11 @@ def test_empty_intensity_table():
     empty = IntensityTable.empty_intensity_table(spot_attributes, 2, 2)
     assert empty.shape == (2, 2, 2)
 
+
+def test_fill_empty_intensity_table():
+    pass
+
+
 def test_intensity_table_raises_value_error_with_wrong_input_shape(small_intensity_table):
     pass
 
