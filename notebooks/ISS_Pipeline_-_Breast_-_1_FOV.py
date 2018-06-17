@@ -24,8 +24,8 @@ from starfish.constants import Indices
 
 s = Stack()
 s.read('https://dmf0bdeheu4zf.cloudfront.net/20180606/ISS/fov_001/experiment.json')
-# s.squeeze() simply converts the 4D tensor H*C*X*Y into a list of len(H*C) image planes for rendering by 'tile'
-tile(s.squeeze());
+# s.image.squeeze() simply converts the 4D tensor H*C*X*Y into a list of len(H*C) image planes for rendering by 'tile'
+tile(s.image.squeeze());
 # EPY: END code
 
 # EPY: START markdown
@@ -94,7 +94,9 @@ from starfish.viz import tile_lims
 # filter raw data
 disk_size = 15  # disk as in circle
 filt = Filter.white_tophat(disk_size)
-filt.filter(s)
+filt.filter(s.image)
+for img in s.auxiliary_images.values():
+    filt.filter(img)
 # EPY: END code
 
 # EPY: START code
@@ -144,7 +146,7 @@ p = SpotFinder.gaussian_spot_detector(
     max_sigma=max_sigma,
     num_sigma=num_sigma,
     threshold=threshold,
-    blobs_image_name='dots',
+    blobs_stack=s.auxiliary_images['dots'],
     measurement_type='mean',
 )
 
@@ -153,7 +155,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # blobs = dots; define the spots in the dots image, but then find them again in the stack.
-    attributes, encoded = p.find(s)
+    attributes, encoded = p.find(s.image)
 
 encoded.data.head()
 # EPY: END code

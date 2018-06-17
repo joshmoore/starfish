@@ -16,9 +16,14 @@ def test_iss_pipeline(labeled_synthetic_dataset):
     fsr.register(stack)
 
     wth = WhiteTophat(disk_size=15)
-    wth.filter(stack)
+    wth.filter(stack.image)
+    for image in stack.auxiliary_images.values():
+        wth.filter(image)
 
     gsd = GaussianSpotDetector(blobs_image_name='dots', min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
+    gsd = GaussianSpotDetector(
+        blobs_stack=stack.auxiliary_images['dots'], min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
+    spot_attributes, encoded_spots = gsd.find(stack.image)
 
     intesities = gsd.find(stack)
     # # codebook = Codebook.from_code_array(code_array, n_ch=4, n_hyb=4)
