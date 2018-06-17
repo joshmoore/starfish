@@ -21,7 +21,7 @@ DEFAULT_WIDTH = 45
 N_CODES = 16
 
 # constants for spot generation
-N_SPOTS = 5                         # Number of spots to generate
+N_SPOTS = 20                        # Number of spots to generate
 N_PHOTONS_BACKGROUND = 1000         # Number of photons per pixel of background noise
 BACKGROUND_ELECTRONS = 1            # camera read noise per pixel in units electrons
 POINT_SPREAD_FUNCTION = (4, 2, 2)   # standard devitation of gaussian point spread function in pixel units

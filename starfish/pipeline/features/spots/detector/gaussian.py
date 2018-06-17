@@ -13,6 +13,7 @@ from starfish.munge import melt
 from starfish.pipeline.features.encoded_spots import EncodedSpots
 from starfish.pipeline.features.spot_attributes import SpotAttributes
 from starfish.util.argparse import FsExistsType
+from starfish.munge import dataframe_to_multiindex
 from ._base import SpotFinderAlgorithmBase
 
 
@@ -88,13 +89,19 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             for image in stack.squeeze()
         ]
 
-        tile_data = stack.image.tile_metadata[[Indices.CH, Indices.HYB]]
+        tile_data = stack.tile_metadata[[Indices.CH, Indices.HYB]]
         n_ch, n_hyb = np.max(tile_data, axis=0) + 1
-        intensity_table = IntensityTable.empty_intensity_table(spot_attributes, n_ch, n_hyb)
+
+        # if there was no z-coordinates, create one here.
+        if 'z' not in spot_attributes.columns:
+            spot_attributes['z'] = np.ones(spot_attributes.shape[0])
+
+        spot_attribute_index = dataframe_to_multiindex(spot_attributes)
+        intensity_table = IntensityTable.empty_intensity_table(spot_attribute_index, n_ch, n_hyb)
 
         for i, values in enumerate(intensities):
             ch, hyb = tile_data.iloc[i, :]
-            intensity_table.loc[i, ch, hyb] = values
+            intensity_table.loc[:, ch, hyb] = values
 
         return intensity_table
 
@@ -103,6 +110,9 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             data=blob_log(blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold, self.overlap),
             columns=['x', 'y', 'r'],
         )
+
+        if fitted_blobs.shape[0] == 0:
+            raise ValueError('No spots detected with provided parameters')
 
         # TODO ambrosejcarr: why is this necessary? (check docs)
         fitted_blobs['r'] *= np.sqrt(2)
@@ -119,7 +129,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
         return fitted_blobs
 
-    def find(self, hybridization_image) -> Tuple[SpotAttributes, EncodedSpots]:
+    def find(self, hybridization_image) -> IntensityTable:
         blobs = self.blobs_stack.max_proj(Indices.HYB, Indices.CH, Indices.Z)
         spot_attributes = self._find_spot_locations(blobs)
         intensity_table = self._measure_spot_intensities(hybridization_image, spot_attributes)

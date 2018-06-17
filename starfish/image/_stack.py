@@ -692,7 +692,7 @@ class ImageStack:
             pretty=True,
             tile_opener=tile_opener)
 
-    def max_proj(self, *dims: Indices) -> numpy.ndarray:
+    def max_proj(self, *dims: Indices) -> np.ndarray:
         """return a max projection over one or more axis of the image tensor
 
         Parameters
@@ -808,3 +808,31 @@ class ImageStack:
         new_shape = (self.num_hybs, self.num_chs, self.num_zlayers) + self.tile_shape
         res = stack.reshape(new_shape)
         return res
+
+    @classmethod
+    def from_numpy_array(cls, array: np.ndarray) -> "ImageStack":
+        """
+
+        Parameters
+        ----------
+        array : np.ndarray
+            5-d tensor of shape (n_hyb, n_ch, n_z, x, y)
+
+        Returns
+        -------
+        ImageStack :
+            array data stored as an ImageStack
+
+        """
+        if not len(array.shape) == 5:
+            raise ValueError('a 5-d tensor with shape (n_hyb, n_ch, n_z, x, y) must be provided.')
+        n_hyb, n_ch, n_z, height, width = array.shape
+        empty = cls.synthetic_stack(
+            num_hyb=n_hyb, num_ch=n_ch, num_z=n_z, tile_height=height, tile_width=width)
+        for h in np.arange(n_hyb):
+            for c in np.arange(n_ch):
+                for z in np.arange(n_z):
+                    view = array[h, c, z]
+                    empty.set_slice({Indices.HYB: h, Indices.CH: c, Indices.Z: z}, view)
+
+        return empty

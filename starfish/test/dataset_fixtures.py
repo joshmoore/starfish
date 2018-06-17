@@ -27,15 +27,15 @@ def merfish_stack() -> Stack:
     return deepcopy(s)
 
 
-# TODO this doesn't work yet because tony's thing isn't merged.
 @pytest.fixture(scope='session')
 def labeled_synthetic_dataset():
     stp = synthesize.SyntheticSpotTileProvider()
     image = ImageStack.synthetic_stack(tile_data_provider=stp.tile)
-    dots = image.max_proj(Indices.CH, Indices.HYB, Indices.Z)
-    stack = Stack.from_data(image, aux_dict={'dots': dots})
+    max_proj = image.max_proj(Indices.HYB, Indices.CH, Indices.Z)
+    view = max_proj.reshape((1, 1, 1) + max_proj.shape)
+    dots = ImageStack.from_numpy_array(view)
 
     def labeled_synthetic_dataset_factory():
-        return deepcopy(stack)
+        return deepcopy(image), deepcopy(dots)
 
     return labeled_synthetic_dataset_factory

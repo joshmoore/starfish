@@ -35,7 +35,7 @@ class IntensityTable(xr.DataArray):
         -------
 
         """
-        # TODO verify spot_attributes here (refactor from another class?)
+        cls._verify_spot_attributes(spot_attributes)
         channel_index = pd.Index(np.arange(n_ch))
         hyb_index = pd.Index(np.arange(n_hyb))
         data = np.zeros((spot_attributes.shape[0], n_ch, n_hyb))

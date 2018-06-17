@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from starfish.constants import Indices
 from starfish.image import ImageStack
@@ -122,3 +123,18 @@ def test_set_slice_range():
     stack.set_slice(index, expected)
 
     assert np.array_equal(stack.get_slice(index)[0], expected)
+
+
+def test_from_numpy_array_raises_error_when_incorrect_dims_passed():
+    array = np.ones((2, 2))
+    # verify this method works with the correct shape
+    image = ImageStack.from_numpy_array(array.reshape((1, 1, 1, 2, 2)))
+    assert isinstance(image, ImageStack)
+
+    with pytest.raises(ValueError):
+        ImageStack.from_numpy_array(array.reshape((1, 1, 2, 2)))
+        ImageStack.from_numpy_array(array.reshape((1, 2, 2)))
+        ImageStack.from_numpy_array(array)
+        ImageStack.from_numpy_array(array.reshape((1, 1, 1, 1, 2, 2)))
+
+
