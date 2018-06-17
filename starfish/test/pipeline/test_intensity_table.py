@@ -33,6 +33,15 @@ def small_intensity_table():
     return IntensityTable.from_spot_data(intensities, spot_attributes)
 
 
+# todo need more tests of this
+def test_empty_intensity_table():
+    x = [1, 2]
+    y = [2, 3]
+    r = [1, 1]
+    spot_attributes = pd.MultiIndex.from_arrays([x, y, r], names=('x', 'y', 'r'))
+    empty = IntensityTable.empty_intensity_table(spot_attributes, 2, 2)
+    assert empty.shape == (2, 2, 2)
+
 def test_intensity_table_raises_value_error_with_wrong_input_shape(small_intensity_table):
     pass
 

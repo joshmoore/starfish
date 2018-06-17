@@ -22,6 +22,41 @@ class IntensityTable(xr.DataArray):
         RADIUS = 'r'
 
     @classmethod
+    def empty_intensity_table(cls, spot_attributes: pd.MultiIndex, n_ch: int, n_hyb: int) -> "IntensityTable":
+        """Create an empty intensity table with pre-set axis whose values are zero
+
+        Parameters
+        ----------
+        spot_attributes : pd.MultiIndex
+        n_ch : int
+        n_hyb : int
+
+        Returns
+        -------
+
+        """
+        # TODO verify spot_attributes here (refactor from another class?)
+        channel_index = pd.Index(np.arange(n_ch))
+        hyb_index = pd.Index(np.arange(n_hyb))
+        data = np.zeros((spot_attributes.shape[0], n_ch, n_hyb))
+        dims = (IntensityTable.Constants.FEATURES.value, Indices.CH.value, Indices.HYB.value)
+        return cls(data=data, coords=(spot_attributes, channel_index, hyb_index), dims=dims)
+
+    @staticmethod
+    def _verify_spot_attributes(spot_attributes: pd.MultiIndex) -> None:
+        """Run some checks on spot attributes"""
+        if not isinstance(spot_attributes, pd.MultiIndex):
+            raise ValueError(
+                f'spot attributes must be a pandas MultiIndex, not {type(spot_attributes)}.')
+
+        required_attributes = set(a.value for a in IntensityTable.SpotAttributes)
+        missing_attributes = required_attributes.difference(spot_attributes.names)
+        if missing_attributes:
+            raise ValueError(
+                f'Missing spot_attribute levels in provided MultiIndex: {missing_attributes}. '
+                f'The following levels are required: {required_attributes}.')
+
+    @classmethod
     def from_spot_data(
             cls, intensities: Union[xr.DataArray, np.ndarray], spot_attributes: pd.MultiIndex,
             *args, **kwargs) -> "IntensityTable":
@@ -49,16 +84,7 @@ class IntensityTable(xr.DataArray):
                 f'intensities must be a (features * ch * hyb) 3-d tensor. Provided intensities '
                 f'shape ({intensities.shape}) is invalid.')
 
-        if not isinstance(spot_attributes, pd.MultiIndex):
-            raise ValueError(
-                f'spot attributes must be a pandas MultiIndex, not {type(spot_attributes)}.')
-
-        required_attributes = set(a.value for a in IntensityTable.SpotAttributes)
-        missing_attributes = required_attributes.difference(spot_attributes.names)
-        if missing_attributes:
-            raise ValueError(
-                f'Missing spot_attribute levels in provided MultiIndex: {missing_attributes}. '
-                f'The following levels are required: {required_attributes}.')
+        cls._verify_spot_attributes(spot_attributes)
 
         coords = (
             (IntensityTable.Constants.FEATURES.value, spot_attributes),

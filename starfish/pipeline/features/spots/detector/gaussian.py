@@ -81,9 +81,15 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             for image in stack.squeeze()
         ]
 
-        intensity_data = pd.DataFrame(dict(zip(range(len(intensities)), intensities))).T
-        tile_data = pd.DataFrame(stack.image.tile_metadata)
-        return IntensityTable.from_spot_data(intensity_data, tile_data, spot_attributes)
+        tile_data = stack.image.tile_metadata[[Indices.CH, Indices.HYB]]
+        n_ch, n_hyb = np.max(tile_data, axis=0) + 1
+        intensity_table = IntensityTable.empty_intensity_table(spot_attributes, n_ch, n_hyb)
+
+        for i, values in enumerate(intensities):
+            ch, hyb = tile_data.iloc[i, :]
+            intensity_table.loc[i, ch, hyb] = values
+
+        return intensity_table
 
     def _find_spot_locations(self, blobs_image):
         fitted_blobs = pd.DataFrame(
