@@ -13,9 +13,8 @@ def test_iss_pipeline(labeled_synthetic_dataset):
     wth.filter(image)
     wth.filter(dots)
 
-    # note that this should do nothing, there is no jitter
-    fsr = FourierShiftRegistration(upsampling=1000)
-    fsr.register(image)
+    fsr = FourierShiftRegistration(upsampling=1000, reference_stack=dots)
+    fsr.register(stack.image)
 
     min_sigma = 1
     max_sigma = 10
