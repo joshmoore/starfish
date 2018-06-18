@@ -87,7 +87,7 @@ def create_spots(
     return image, spot_attributes
 
 
-# todo this is a synthetic ImageStack
+# todo this thing should generate synthetic everything (including SpotAttributes)
 def _synthetic_spots(
         n_hyb: int=DEFAULT_NUM_HYB,
         n_ch: int=DEFAULT_NUM_CH,
@@ -101,7 +101,7 @@ def _synthetic_spots(
         background_electrons=BACKGROUND_ELECTRONS,
         graylevel=GRAYLEVEL,
         ad_conversion_bits=AD_CONVERSION_BITS
-) -> Tuple[xr.DataArray, pd.DataFrame]:
+) -> Tuple[xr.DataArray, pd.DataFrame, Codebook]:
     """
 
     Parameters
@@ -143,12 +143,12 @@ def _synthetic_spots(
     # TODO remove the intensities
     corrected_signal = select_uint_dtype(image)
     corrected_signal.values = rescale_intensity(corrected_signal.values)
-    corrected_signal.values = np.clip(corrected_signal, 0, np.inf)
+    corrected_signal.values = np.clip(corrected_signal, 0, a_max=None)
 
-    return corrected_signal, spot_attributes
+    return corrected_signal, spot_attributes, codebook
 
 
-# TODO this is also imagestack related
+# TODO this is also imagestack related, move this somewhere?
 class SyntheticSpotTileProvider:
 
     def __init__(self,
@@ -157,8 +157,10 @@ class SyntheticSpotTileProvider:
                  z=DEFAULT_NUM_Z,
                  height=DEFAULT_HEIGHT,
                  width=DEFAULT_WIDTH):
-        data, spot_attributes = _synthetic_spots(hyb, ch, z, height, width)
+        data, spot_attributes, codebook = _synthetic_spots(hyb, ch, z, height, width)
         self.data = data
+        self.codebook = codebook
+        self.spot_attributes = spot_attributes
 
     def tile(self, hyb: int, ch: int, z: int, *args, **kwargs):
         return self.data.sel(h=hyb, c=ch, z=z)

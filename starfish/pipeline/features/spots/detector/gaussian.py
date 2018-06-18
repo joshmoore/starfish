@@ -5,13 +5,8 @@ import pandas as pd
 from skimage.feature import blob_log
 
 from starfish.constants import Indices
-from starfish.pipeline.features.encoded_spots import EncodedSpots
-from starfish.pipeline.features.spot_attributes import SpotAttributes
 from starfish.pipeline.features.intensity_table import IntensityTable
 from starfish.image import ImageStack
-from starfish.munge import melt
-from starfish.pipeline.features.encoded_spots import EncodedSpots
-from starfish.pipeline.features.spot_attributes import SpotAttributes
 from starfish.util.argparse import FsExistsType
 from starfish.munge import dataframe_to_multiindex
 from ._base import SpotFinderAlgorithmBase
@@ -105,7 +100,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
         return intensity_table
 
-    def _find_spot_locations(self, blobs_image):
+    def _find_spot_locations(self, blobs_image: np.ndarray) -> pd.DataFrame:
         fitted_blobs = pd.DataFrame(
             data=blob_log(blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold, self.overlap),
             columns=['x', 'y', 'r'],

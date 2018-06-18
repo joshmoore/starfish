@@ -707,6 +707,10 @@ class ImageStack:
 
         """
         axes = list()
+
+        # preserve data's type
+        dtype = self.numpy_array.dtype
+
         for dim in dims:
             try:
                 axes.append(ImageStack.AXES_MAP[dim])
@@ -714,7 +718,8 @@ class ImageStack:
                 raise ValueError(
                     "Dimension: {} not supported. Expecting one of: {}".format(dim, ImageStack.AXES_MAP.keys()))
 
-        return numpy.max(self._data, axis=tuple(axes))
+        max_projection = numpy.max(self._data, axis=tuple(axes)).astype(dtype)
+        return max_projection
 
     @staticmethod
     def _default_tile_extras_provider(hyb: int, ch: int, z: int) -> Any:
@@ -829,6 +834,10 @@ class ImageStack:
         n_hyb, n_ch, n_z, height, width = array.shape
         empty = cls.synthetic_stack(
             num_hyb=n_hyb, num_ch=n_ch, num_z=n_z, tile_height=height, tile_width=width)
+
+        # preserve original dtype
+        empty._data = empty._data.astype(array.dtype)
+
         for h in np.arange(n_hyb):
             for c in np.arange(n_ch):
                 for z in np.arange(n_z):

@@ -1,32 +1,38 @@
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
 from starfish.pipeline.filter.white_tophat import WhiteTophat
 from starfish.pipeline.registration.fourier_shift import FourierShiftRegistration
-from starfish.io import Stack
 import pytest
 from starfish.test.dataset_fixtures import labeled_synthetic_dataset
 from starfish.pipeline.features.codebook import Codebook
 
 
-@pytest.mark.skip('needs a dots image to be created somehow')
 def test_iss_pipeline(labeled_synthetic_dataset):
-    image_stack = labeled_synthetic_dataset()
-    stack = Stack.from_data(image_stack)
-
-    fsr = FourierShiftRegistration(upsampling=1000)
-    fsr.register(stack)
+    image, dots, codebook = labeled_synthetic_dataset()
 
     wth = WhiteTophat(disk_size=15)
-    wth.filter(stack.image)
-    for image in stack.auxiliary_images.values():
-        wth.filter(image)
+    wth.filter(image)
+    wth.filter(dots)
 
-    gsd = GaussianSpotDetector(blobs_image_name='dots', min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
+    # note that this should do nothing, there is no jitter
+    fsr = FourierShiftRegistration(upsampling=1000)
+    fsr.register(image)
+
+    min_sigma = 1
+    max_sigma = 10
+    num_sigma = 30
+    threshold = 4000
     gsd = GaussianSpotDetector(
-        blobs_stack=stack.auxiliary_images['dots'], min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
-    spot_attributes, encoded_spots = gsd.find(stack.image)
+        min_sigma=min_sigma,
+        max_sigma=max_sigma,
+        num_sigma=num_sigma,
+        threshold=threshold,
+        blobs_stack=dots,
+        measurement_type='max',
+    )
+    intensities = gsd.find(hybridization_image=image)
+    assert intensities.shape[0] == 20
 
-    intesities = gsd.find(stack)
-    # # codebook = Codebook.from_code_array(code_array, n_ch=4, n_hyb=4)
-    # # intesities = codebook.euclidean_decode(intesities)
-    #
-    # assert intesities.shape[0] == 19
+    intesities = codebook.decode_per_channel_max(intensities)
+
+    import pdb; pdb.set_trace()
+

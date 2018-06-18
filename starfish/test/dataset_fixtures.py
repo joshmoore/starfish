@@ -36,6 +36,6 @@ def labeled_synthetic_dataset():
     dots = ImageStack.from_numpy_array(view)
 
     def labeled_synthetic_dataset_factory():
-        return deepcopy(image), deepcopy(dots)
+        return deepcopy(image), deepcopy(dots), deepcopy(stp.codebook)
 
     return labeled_synthetic_dataset_factory

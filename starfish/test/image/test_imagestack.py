@@ -138,3 +138,17 @@ def test_from_numpy_array_raises_error_when_incorrect_dims_passed():
         ImageStack.from_numpy_array(array.reshape((1, 1, 1, 1, 2, 2)))
 
 
+def test_from_numpy_array_preserves_dtype():
+    original_dtype = np.uint16
+    array = np.ones((2, 2, 2), dtype=original_dtype)
+    image = ImageStack.from_numpy_array(array.reshape((1, 1, 2, 2, 2)))
+    assert image.numpy_array.dtype == original_dtype
+
+
+def test_max_projection_preserves_dtype():
+    original_dtype = np.uint16
+    array = np.ones((2, 2, 2), dtype=original_dtype)
+    image = ImageStack.from_numpy_array(array.reshape((1, 1, 2, 2, 2)))
+
+    max_projection = image.max_proj(Indices.CH, Indices.HYB, Indices.Z)
+    assert max_projection.dtype == original_dtype
