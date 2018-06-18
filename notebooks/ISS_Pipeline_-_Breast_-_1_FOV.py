@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 #
-# EPY: stripped_notebook: {"metadata": {"hide_input": false, "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}, "language_info": {"codemirror_mode": {"name": "ipython", "version": 3}, "file_extension": ".py", "mimetype": "text/x-python", "name": "python", "nbconvert_exporter": "python", "pygments_lexer": "ipython3", "version": "3.6.4"}, "toc": {"nav_menu": {}, "number_sections": true, "sideBar": true, "skip_h1_title": false, "toc_cell": false, "toc_position": {}, "toc_section_display": "block", "toc_window_display": false}}, "nbformat": 4, "nbformat_minor": 2}
+# EPY: stripped_notebook: {"metadata": {"hide_input": false, "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}, "language_info": {"codemirror_mode": {"name": "ipython", "version": 3}, "file_extension": ".py", "mimetype": "text/x-python", "name": "python", "nbconvert_exporter": "python", "pygments_lexer": "ipython3", "version": "3.6.5"}, "toc": {"nav_menu": {}, "number_sections": true, "sideBar": true, "skip_h1_title": false, "toc_cell": false, "toc_position": {}, "toc_section_display": "block", "toc_window_display": false}}, "nbformat": 4, "nbformat_minor": 2}
 
 # EPY: START markdown
 # ## Reproduce In-situ Sequencing results with Starfish
@@ -10,6 +10,11 @@
 # 
 # ## Load tiff stack and visualize one field of view
 # EPY: END markdown
+
+# EPY: START code
+# EPY: ESCAPE %load_ext autoreload
+# EPY: ESCAPE %autoreload 2
+# EPY: END code
 
 # EPY: START code
 import numpy as np
@@ -23,9 +28,9 @@ from starfish.io import Stack
 from starfish.constants import Indices
 
 s = Stack()
-s.read('https://dmf0bdeheu4zf.cloudfront.net/20180606/ISS/fov_001/experiment.json')
+s.read('/Users/ambrosecarr/Desktop/ISS_Breast/fov_001/experiment.json')
 # s.image.squeeze() simply converts the 4D tensor H*C*X*Y into a list of len(H*C) image planes for rendering by 'tile'
-tile(s.image.squeeze());
+# tile(s.image.squeeze());
 # EPY: END code
 
 # EPY: START markdown
@@ -78,7 +83,31 @@ image(s.auxiliary_images['nuclei'].max_proj(Indices.HYB, Indices.CH, Indices.Z))
 
 # EPY: START code
 codebook = pd.read_csv('https://dmf0bdeheu4zf.cloudfront.net/20180606/ISS/codebook.csv', dtype={'barcode': object})
-codebook.head(20)
+codebook.head(4)
+# EPY: END code
+
+# EPY: START markdown
+# We need to translate this thing to the new version
+# EPY: END markdown
+
+# EPY: START code
+from starfish.pipeline.features.codebook import Codebook
+
+modern_codebook = Codebook._empty_codebook(codebook['gene'], 4, 4)
+
+dna_map = {
+    'A': 3,
+    'C': 2,
+    'G': 1,
+    'T': 0
+}
+
+for _, (gene, barcode) in codebook.iterrows():
+    for hyb, nucleotide in enumerate(barcode):
+        ch = dna_map[nucleotide]
+        modern_codebook.loc[gene, ch, hyb] = 1
+        
+codebook = modern_codebook
 # EPY: END code
 
 # EPY: START markdown
@@ -97,10 +126,6 @@ filt = Filter.white_tophat(disk_size)
 filt.filter(s.image)
 for img in s.auxiliary_images.values():
     filt.filter(img)
-# EPY: END code
-
-# EPY: START code
-s.image.show_stack({Indices.Z: 0})
 # EPY: END code
 
 # EPY: START markdown
@@ -132,6 +157,10 @@ registration.register(s.image)
 # EPY: END markdown
 
 # EPY: START code
+plt.hist(np.ravel(s.image.max_proj(Indices.CH, Indices.HYB, Indices.Z)), bins=25);
+# EPY: END code
+
+# EPY: START code
 from starfish.pipeline.features.spots.detector import SpotFinder
 import warnings
 
@@ -155,20 +184,14 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # blobs = dots; define the spots in the dots image, but then find them again in the stack.
-    attributes, encoded = p.find(s.image)
-
-encoded.data.head()
+    intensities = p.find(s.image)
 # EPY: END code
 
 # EPY: START code
 # Verify the spot count is reasonable.
-spot_count = len(encoded.data.spot_id.unique())
+spot_count = intensities.shape[0]
 assert 1000 < spot_count < 5000
 spot_count
-# EPY: END code
-
-# EPY: START code
-s.image.show_stack({Indices.Z: 0})
 # EPY: END code
 
 # EPY: START markdown
@@ -176,7 +199,7 @@ s.image.show_stack({Indices.Z: 0})
 # EPY: END markdown
 
 # EPY: START code
-encoded.data[encoded.data.spot_id == 100]
+intensities[100]
 # EPY: END code
 
 # EPY: START markdown
@@ -188,10 +211,6 @@ encoded.data[encoded.data.spot_id == 100]
 # 
 # `x, y` describe the position, while `x_min` through `y_max` describe the bounding box for the spot, which is refined by a radius `r`. This table also stores the intensity and spot_id.
 # EPY: END markdown
-
-# EPY: START code
-attributes.data.head()
-# EPY: END code
 
 # EPY: START markdown
 # ## Decode
@@ -206,14 +225,7 @@ attributes.data.head()
 # EPY: END markdown
 
 # EPY: START code
-from starfish.pipeline.features.spots.decoder.iss import IssDecoder
-
-decoder = IssDecoder()
-res = decoder.decode(encoded.data, codebook, letters=('T', 'G', 'C', 'A'))  # letters = channels
-res.data.head()
-
-# below, 2, 3 are NaN because not defined in codebook.
-# note 2, 3 have higher quality than 0, 1 (which ARE defined)
+decoded = codebook.decode_per_channel_max(intensities)
 # EPY: END code
 
 # EPY: START markdown
@@ -223,6 +235,15 @@ res.data.head()
 # EPY: START markdown
 # Besides house keeping genes, VIM and HER2 should be most highly expessed, which is consistent here.
 # EPY: END markdown
+
+# EPY: START code
+genes, counts = np.unique(decoded['gene_name'], return_counts=True)
+table = pd.Series(counts, index=genes).sort_values(ascending=False)
+# EPY: END code
+
+# EPY: START code
+table
+# EPY: END code
 
 # EPY: START code
 table = res.data.gene.value_counts().sort_index(ascending=False).sort_values(kind='mergesort', ascending=False)
@@ -267,11 +288,19 @@ seg.show()
 # EPY: END markdown
 
 # EPY: START code
+decoded.where(decoded.gene_name == GENE1, drop=True).y
+# EPY: END code
+
+# EPY: START code
 from skimage.color import rgb2gray
+
+# Genes decode wrong. Why? 
+GENE1='ST-3'  # should be HER2
+GENE2='MYC'   # should be VIM
 
 # looking at decoded results with spatial information.
 # "results" is the output of the pipeline -- x, y, gene, cell.
-results = pd.merge(res.data, attributes.data, on='spot_id', how='left')
+# results = pd.merge(res.data, attributes.data, on='spot_id', how='left')
 
 rgb = np.zeros(s.image.tile_shape + (3,))
 rgb[:,:,0] = s.auxiliary_images['nuclei'].max_proj(Indices.HYB, Indices.CH, Indices.Z)
@@ -280,7 +309,10 @@ do = rgb2gray(rgb)
 do = do/(do.max())
 
 image(do,size=10)
-plt.plot(results[results.gene=='HER2'].y, results[results.gene=='HER2'].x, 'or')
-plt.plot(results[results.gene=='VIM'].y, results[results.gene=='VIM'].x, 'ob')
-plt.title('Red: HER2, Blue: VIM');
+is_gene1 = decoded.where(decoded.gene_name == GENE1, drop=True)
+is_gene2 = decoded.where(decoded.gene_name == GENE2, drop=True)
+
+plt.plot(is_gene1.y, is_gene1.x, 'or')
+plt.plot(is_gene2.y, is_gene2.x, 'ob')
+plt.title(f'Red: {GENE1}, Blue: {GENE2}');
 # EPY: END code

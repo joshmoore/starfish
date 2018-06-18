@@ -5,11 +5,11 @@ from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetec
 
 
 def test_create_intensity_table(labeled_synthetic_dataset):
-    image, dots, codebook, spot_attributes = labeled_synthetic_dataset()
+    image, dots, codebook = labeled_synthetic_dataset()
     min_sigma = 1
     max_sigma = 10
     num_sigma = 30
-    threshold = 4000
+    threshold = 2500
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,
@@ -24,11 +24,11 @@ def test_create_intensity_table(labeled_synthetic_dataset):
 
 def test_create_intensity_table_raises_value_error_when_no_spots_detected(
         labeled_synthetic_dataset):
-    image, dots, codebook, spot_attributes = labeled_synthetic_dataset()
+    image, dots, codebook = labeled_synthetic_dataset()
     min_sigma = 1
     max_sigma = 10
     num_sigma = 30
-    threshold = 40000  # this should cause no spots to be detected
+    threshold = 25000
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,

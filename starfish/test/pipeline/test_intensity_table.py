@@ -37,8 +37,9 @@ def small_intensity_table():
 def test_empty_intensity_table():
     x = [1, 2]
     y = [2, 3]
+    z = [1, 1]
     r = [1, 1]
-    spot_attributes = pd.MultiIndex.from_arrays([x, y, r], names=('x', 'y', 'r'))
+    spot_attributes = pd.MultiIndex.from_arrays([x, y, z, r], names=('x', 'y', 'z', 'r'))
     empty = IntensityTable.empty_intensity_table(spot_attributes, 2, 2)
     assert empty.shape == (2, 2, 2)
 
@@ -61,19 +62,3 @@ def test_intensity_table_raises_value_error_with_missing_spot_attributes(small_i
 
 def test_intensity_table_passes_args_and_kwargs_to_xarray_constructor(small_intensity_table):
     pass
-
-
-
-# @pytest.mark.skip('needs codebook and data generated synthetically')
-# def test_intensity_table():
-#     data, codebook = _synthetic_spots()
-#     gsd = GaussianSpotDetector(blobs_image_name='dots', min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
-#     intensity_table = gsd.find(data)
-#     codebook = Codebook.from_code_array(codebook, 4, 4)
-#     result = codebook.decode_euclidean(intensity_table)
-#
-#     expected_gene_decoding = np.array([77, 87, 27, 77, 74, 94, 106, 77, 32, 110, 21, 46, 103, 39, 85, 108, 11, 4])
-#     assert np.array_equal(result.indexes['features'].get_level_values('gene'), expected_gene_decoding)
-#
-#
-
