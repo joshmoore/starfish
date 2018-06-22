@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from starfish.test.dataset_fixtures import labeled_synthetic_dataset
+from starfish.util.synthesize import SyntheticData
 from starfish.image import ImageStack
 
 
@@ -26,16 +26,16 @@ def test_apply_3d():
     assert (stack.numpy_array == 4).all()
 
 
-def test_apply_labeled_dataset(labeled_synthetic_dataset):
+def test_apply_labeled_dataset():
     """test that apply correctly applies a simple function across starfish-generated synthetic data"""
-    original, _, _ = labeled_synthetic_dataset()
+    original = SyntheticData().spots()
     image = deepcopy(original)
     image.apply(multiply, value=2)
     assert np.all(image.numpy_array == original.numpy_array * 2)
 
 
-def test_apply_not_in_place(labeled_synthetic_dataset):
+def test_apply_not_in_place():
     """test that apply correctly applies a simple function across a starfish stack without modifying original data"""
-    image, _, _ = labeled_synthetic_dataset()
+    image = SyntheticData().spots()
     new = image.apply(multiply, value=2, in_place=False)
     assert np.all(new.numpy_array == image.numpy_array * 2)

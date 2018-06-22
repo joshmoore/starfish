@@ -49,6 +49,10 @@ class Codebook(xr.DataArray):
         GENE = 'gene_name'
         VALUE = 'v'
 
+    @property
+    def code_length(self) -> int:
+        return int(np.dot(*self.shape[1:]))
+
     @classmethod
     def _empty_codebook(cls, code_names: Sequence[str], n_ch: int, n_hyb: int):
         """create an empty codebook of shape (code_names, n_ch, n_hyb)

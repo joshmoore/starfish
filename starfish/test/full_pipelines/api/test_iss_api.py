@@ -1,14 +1,21 @@
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
 from starfish.pipeline.filter.white_tophat import WhiteTophat
 from starfish.pipeline.registration.fourier_shift import FourierShiftRegistration
-import pytest
-from starfish.test.dataset_fixtures import labeled_synthetic_dataset
+from starfish.util.synthesize import SyntheticData
+import numpy as np
+from starfish.constants import Indices
+from starfish.image import ImageStack
 
 
-@pytest.skip('this fails because 3d data is not working currently, and this test is not the fastest'
-             'way to test this fault')
-def test_iss_pipeline(labeled_synthetic_dataset):
-    image, dots, codebook = labeled_synthetic_dataset()
+def test_iss_pipeline():
+    np.random.seed(3)
+    synthesizer = SyntheticData(n_spots=5)
+    codebook = synthesizer.codebook()
+    true_intensities = synthesizer.intensities(codebook=codebook)
+    image = synthesizer.spots(intensities=true_intensities)
+
+    dots_data = image.max_proj(Indices.HYB, Indices.CH, Indices.Z)
+    dots = ImageStack.from_numpy_array(dots_data.reshape((1, 1, 1, *dots_data.shape)))
 
     # todo the synthetic data looks weird in 3d, look into it.
     wth = WhiteTophat(disk_size=15)
@@ -18,10 +25,10 @@ def test_iss_pipeline(labeled_synthetic_dataset):
     fsr = FourierShiftRegistration(upsampling=1000, reference_stack=dots)
     fsr.register(image)
 
-    min_sigma = 1
+    min_sigma = 1.5
     max_sigma = 10
     num_sigma = 30
-    threshold = 4000
+    threshold = 0.1
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,
@@ -30,9 +37,8 @@ def test_iss_pipeline(labeled_synthetic_dataset):
         blobs_stack=dots,
         measurement_type='max',
     )
+
     intensities = gsd.find(hybridization_image=image)
-    assert intensities.shape[0] == 20
+    assert intensities.shape[0] == 5
 
-    codebook.decode_per_channel_max(intensities)
-
-
+    codebook.decode_euclidean(intensities)

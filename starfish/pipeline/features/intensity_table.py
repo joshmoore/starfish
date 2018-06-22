@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from starfish.constants import Indices, AugmentedEnum
+from starfish.constants import Indices, AugmentedEnum, Coordinates
 
 
 class IntensityTable(xr.DataArray):
@@ -134,3 +134,38 @@ class IntensityTable(xr.DataArray):
     def show(self, background_image: np.ndarray) -> None:
         """show spots on a background image"""
         raise NotImplementedError
+
+    @classmethod
+    def synthetic_intensities(
+            cls, codebook, num_z: int=12, height: int=50, width: int=40, n_spots=10,
+            mean_fluor_per_spot=200, mean_photons_per_fluor=50
+    ) -> "IntensityTable":
+
+        # TODO nsofroniew: right now there is no jitter on x-y positions of the spots
+        z = np.random.randint(0, num_z, size=n_spots)
+        y = np.random.randint(0, height, size=n_spots)
+        x = np.random.randint(0, width, size=n_spots)
+        r = np.empty(n_spots)
+
+        names = [cls.SpotAttributes.Z.value, cls.SpotAttributes.Y.value,
+                 cls.SpotAttributes.X.value, cls.SpotAttributes.RADIUS.value]
+        spot_attributes = pd.MultiIndex.from_arrays([z, y, x, r], names=names)
+
+        # empty data tensor
+        data = np.zeros(shape=(n_spots, *codebook.shape[1:]))
+
+        genes = np.random.choice(
+            codebook.coords[cls.Constants.GENE.value], size=n_spots, replace=True)
+        expected_bright_locations = np.where(codebook.loc[genes])
+
+        # create a binary matrix where "on" spots are 1
+        data[expected_bright_locations] = 1
+
+        # add physical properties of fluorescence
+        data *= np.random.poisson(mean_photons_per_fluor, size=data.shape)
+        data *= np.random.poisson(mean_fluor_per_spot, size=data.shape)
+
+        intensities = cls.from_spot_data(data, spot_attributes)
+        intensities[cls.Constants.GENE.value] = ('features', genes)
+
+        return intensities

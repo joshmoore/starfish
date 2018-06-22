@@ -103,7 +103,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
     def _find_spot_locations(self, blobs_image: np.ndarray) -> pd.DataFrame:
         fitted_blobs = pd.DataFrame(
             data=blob_log(blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold, self.overlap),
-            columns=['x', 'y', 'r'],
+            columns=['y', 'x', 'r'],
         )
 
         if fitted_blobs.shape[0] == 0:
@@ -111,7 +111,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
         # TODO ambrosejcarr: why is this necessary? (check docs)
         fitted_blobs['r'] *= np.sqrt(2)
-        fitted_blobs[['x', 'y']] = fitted_blobs[['x', 'y']].astype(int)
+        fitted_blobs[['y', 'x']] = fitted_blobs[['y', 'x']].astype(int)
 
         fitted_blobs['x_min'] = np.clip(np.floor(fitted_blobs.x - fitted_blobs.r), 0, None)
         fitted_blobs['x_max'] = np.clip(np.ceil(fitted_blobs.x + fitted_blobs.r), None, blobs_image.shape[0])

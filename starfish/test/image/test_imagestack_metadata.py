@@ -3,8 +3,11 @@ from typing import Any
 import pytest
 
 from starfish.constants import Indices
-from starfish.util.synthesize import DEFAULT_NUM_HYB, DEFAULT_NUM_CH, DEFAULT_NUM_Z
 from starfish.image import ImageStack
+
+NUM_HYB = 4
+NUM_CH = 2
+NUM_Z = 12
 
 
 def test_metadata():
@@ -21,10 +24,10 @@ def test_metadata():
         }
 
     stack = ImageStack.synthetic_stack(
-        tile_extras_provider=tile_extras_provider,
+        num_hyb=NUM_HYB, num_ch=NUM_CH, num_z=NUM_Z, tile_extras_provider=tile_extras_provider,
     )
     table = stack.tile_metadata
-    assert len(table) == DEFAULT_NUM_HYB * DEFAULT_NUM_CH * DEFAULT_NUM_Z
+    assert len(table) == NUM_HYB * NUM_CH * NUM_Z
 
 
 def test_missing_extras():
@@ -44,10 +47,10 @@ def test_missing_extras():
             return None
 
     stack = ImageStack.synthetic_stack(
-        tile_extras_provider=tile_extras_provider,
+        num_hyb=NUM_HYB, num_ch=NUM_CH, num_z=NUM_Z, tile_extras_provider=tile_extras_provider,
     )
     table = stack.tile_metadata
-    assert len(table) == DEFAULT_NUM_HYB * DEFAULT_NUM_CH * DEFAULT_NUM_Z
+    assert len(table) == NUM_HYB * NUM_CH * NUM_Z
 
 
 def test_conflict():
@@ -62,7 +65,7 @@ def test_conflict():
         }
 
     stack = ImageStack.synthetic_stack(
-        tile_extras_provider=tile_extras_provider,
+        num_hyb=NUM_HYB, num_ch=NUM_CH, num_z=NUM_Z, tile_extras_provider=tile_extras_provider,
     )
     with pytest.raises(ValueError):
         stack.tile_metadata

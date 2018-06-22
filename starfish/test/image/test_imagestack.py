@@ -1,8 +1,4 @@
-import numpy as np
-import pytest
-
-from starfish.constants import Indices
-from starfish.image import ImageStack
+from starfish.test.dataset_fixtures import *
 
 
 def test_get_slice_simple_index():
@@ -125,6 +121,12 @@ def test_set_slice_range():
     assert np.array_equal(stack.get_slice(index)[0], expected)
 
 
+def test_from_numpy_array_preserves_data():
+    array = np.random.random((1, 1, 1, 2, 2))
+    image_stack = ImageStack.from_numpy_array(array)
+    assert np.array_equal(array, image_stack.numpy_array)
+
+
 def test_from_numpy_array_raises_error_when_incorrect_dims_passed():
     array = np.ones((2, 2))
     # verify this method works with the correct shape
@@ -152,3 +154,50 @@ def test_max_projection_preserves_dtype():
 
     max_projection = image.max_proj(Indices.CH, Indices.HYB, Indices.Z)
     assert max_projection.dtype == original_dtype
+
+
+def test_synthetic_spot_creation_raises_error_with_coords_too_small(synthetic_intensity_table):
+    num_z = 0
+    height = 40
+    width = 50
+    with pytest.raises(ValueError):
+        ImageStack.synthetic_spots(synthetic_intensity_table, num_z, height, width)
+
+
+def test_synthetic_spot_creation_produces_an_imagestack(synthetic_intensity_table):
+    num_z = 12
+    height = 50
+    width = 40
+    image = ImageStack.synthetic_spots(synthetic_intensity_table, num_z, height, width)
+    assert isinstance(image, ImageStack)
+
+
+def test_synthetic_spot_creation_produces_an_imagestack_with_correct_spot_location(
+        synthetic_spot_pass_through_stack):
+
+    codebook, true_intensities, image = synthetic_spot_pass_through_stack
+
+    g, c, h = np.where(true_intensities.values)
+
+    x = np.empty_like(g)
+    y = np.empty_like(g)
+    z = np.empty_like(g)
+    breaks = np.concatenate([
+        np.array([0]),
+        np.where(np.diff(g))[0] + 1,
+        np.array([g.shape[0]])
+    ])
+    for i in np.arange(len(breaks) - 1):
+        x[breaks[i]: breaks[i + 1]] = true_intensities.coords['x'][i]
+        y[breaks[i]: breaks[i + 1]] = true_intensities.coords['y'][i]
+        z[breaks[i]: breaks[i + 1]] = true_intensities.coords['z'][i]
+
+    # only 8 values should be set, since there are only 8 locations across the tensor
+    assert np.sum(image.numpy_array != 0) == 8
+
+    assert np.array_equal(
+        image.numpy_array[c, h, z, y, x],
+        true_intensities.values[np.where(true_intensities)])
+
+    # import pdb; pdb.set_trace()
+
