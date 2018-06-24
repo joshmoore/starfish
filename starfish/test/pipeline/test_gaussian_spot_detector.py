@@ -1,3 +1,4 @@
+from skimage.feature import blob_log
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
 from starfish.test.dataset_fixtures import *
 
@@ -15,8 +16,8 @@ def test_spots_match_coordinates_of_simple_spot(synthetic_single_spot_imagestack
     )
     intensities = gsd.find(hybridization_image=image)
     assert intensities.shape[0] == 1
-    assert np.abs(int(intensities.y.values) - 10) < 2
-    assert np.abs(int(intensities.x.values) - 90) < 2
+    assert intensities.y.values == 10
+    assert intensities.x.values == 90
 
 
 def test_spots_match_coordinates_of_synthesized_spots(
@@ -59,4 +60,18 @@ def test_create_intensity_table_raises_value_error_when_no_spots_detected(
     with pytest.raises(ValueError):
         gsd.find(hybridization_image=image)
 
+
+def test_blob_log_2d(synthetic_single_spot_2d):
+    result = blob_log(synthetic_single_spot_2d, min_sigma=2, max_sigma=4, num_sigma=10, threshold=0)
+    assert np.array_equal(result, np.array([[10, 90, 2]]))
+
+
+def test_blob_log_3d(synthetic_single_spot_2d):
+    """
+    verify that 3d blob log works, even when the third dimension is too small to support the
+    observed standard deviation
+    """
+    data = synthetic_single_spot_2d.reshape(1, *synthetic_single_spot_2d.shape)
+    result = blob_log(data, min_sigma=2, max_sigma=4, num_sigma=10, threshold=0)
+    assert np.array_equal(result, np.array([[0, 10, 90, 2]]))
 

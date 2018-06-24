@@ -814,7 +814,7 @@ class ImageStack:
     def synthetic_spots(
             cls, intensities, num_z, height, width, n_photons_background=1000,
             point_spread_function=(4, 2, 2), camera_detection_efficiency=0.25,
-            background_electrons=1, graylevel=37000.0 / 2 ** 16, ad_conversion_bits=16,
+            background_electrons=1, graylevel: float=37000.0 / 2 ** 16, ad_conversion_bits=16,
             fill_dynamic_range=True
         ) -> "ImageStack":
         """
@@ -837,7 +837,7 @@ class ImageStack:
         background_electrons : int
             The number of spurious electrons detected during image capture by the camera (default
             1)
-        graylevel : int
+        graylevel : float
             The number of shades of gray displayable by the synthetic camera. Larger numbers will
             produce higher resolution images (default 37000 / 2 ** 16)
         ad_conversion_bits : int

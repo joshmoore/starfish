@@ -186,11 +186,17 @@ def synthetic_dataset_with_truth_values_and_called_spots(
 
 
 @pytest.fixture
-def synthetic_single_spot_imagestack():
+def synthetic_single_spot_2d():
     from scipy.ndimage.filters import gaussian_filter
     data = np.zeros((100, 100), dtype=np.uint16)
     data[10, 90] = 1000
     data = gaussian_filter(data, sigma=2)
+    return data
+
+
+@pytest.fixture
+def synthetic_single_spot_imagestack(synthetic_single_spot_2d):
+    data = synthetic_single_spot_2d
     return ImageStack.from_numpy_array(data.reshape(1, 1, 1, *data.shape))
 
 
@@ -204,4 +210,3 @@ def synthetic_spot_pass_through_stack(synthetic_dataset_with_truth_values):
         point_spread_function=(0, 0, 0), camera_detection_efficiency=1.0,
         background_electrons=0, graylevel=1, fill_dynamic_range=False)
 
-    return codebook, true_intensities, img_stack
