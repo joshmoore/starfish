@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
@@ -36,3 +37,56 @@ def test_round_trip_synthetic_data():
         intensities.coords[intensities.Constants.GENE],
         calculated_intensities.coords[intensities.Constants.GENE]
     )
+
+
+@pytest.mark.skip('long-running integration test, for debugging only')
+def test_medium_synthetic_stack():
+    n_z = 40
+    height = 300
+    width = 400
+    sigma = 2
+
+    sd = SyntheticData(
+        n_hyb=4,
+        n_ch=4,
+        n_z=n_z,
+        height=height,
+        width=width,
+        n_spots=100,
+        n_codes=10,
+        point_spread_function=(sigma, sigma, sigma),
+    )
+
+    codebook = sd.codebook()
+    intensities = sd.intensities(codebook=codebook)
+
+    # some spots won't be detected properly because they will spread outside the image when blurred,
+    # so we'll remove those from intensities before we generate spots.
+
+    spot_radius = sigma * np.sqrt(2)  # this is the radius of the spot in pixels
+
+    valid_z = np.logical_and(intensities.z.values > spot_radius,
+                             intensities.z.values < (n_z - spot_radius))
+    valid_y = np.logical_and(intensities.y.values > spot_radius,
+                             intensities.y.values < (height - spot_radius))
+    valid_x = np.logical_and(intensities.x.values > spot_radius,
+                             intensities.x.values < (width - spot_radius))
+
+    valid_locations = valid_z & valid_y & valid_x
+    intensities = intensities[np.where(valid_locations)]
+    spots = sd.spots(intensities=intensities)
+
+    gsd = GaussianSpotDetector(min_sigma=1, max_sigma=4, num_sigma=5, threshold=1e-4, blobs_stack=spots)
+    calculated_intensities = gsd.find(spots)
+    codebook.decode_euclidean(calculated_intensities)
+
+    # spots are detected in a different order that they're generated; sorting makes comparison easy
+    sorted_intensities = intensities.sortby('features')
+    sorted_calculated_intensities = calculated_intensities.sortby('features')
+
+    # verify that the spots are all detected, and decode to the correct genes
+    assert np.array_equal(
+        sorted_intensities.coords[intensities.Constants.GENE],
+        sorted_calculated_intensities.coords[intensities.Constants.GENE]
+    )
+

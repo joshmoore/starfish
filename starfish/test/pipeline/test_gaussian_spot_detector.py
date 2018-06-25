@@ -88,9 +88,11 @@ def test_find_spot_locations_2d(synthetic_single_spot_imagestack_2d):
 
     assert spot_attributes.shape[0] == 1
     assert np.array_equal(spot_attributes[['z', 'y', 'x']].values, np.array([[0, 10, 90]]))
-    assert np.array_equal(
-        spot_attributes[['z_min', 'z_max', 'y_min', 'y_max', 'x_min', 'x_max']].values,
-        np.array([[0, 1, 7, 13, 87, 93]])
+    # rounding incurs an error of up to one pixel
+    tol = 1
+    assert np.all(
+        np.abs(spot_attributes[['z_min', 'z_max', 'y_min', 'y_max', 'x_min', 'x_max']].values -
+               np.array([[0, 1, 7, 13, 87, 93]])) <= tol
     )
 
 
@@ -100,9 +102,11 @@ def test_find_spot_locations_3d(synthetic_single_spot_imagestack_3d):
 
     assert spot_attributes.shape[0] == 1
     assert np.array_equal(spot_attributes[['z', 'y', 'x']].values, np.array([[5, 10, 90]]))
-    assert np.array_equal(
-        spot_attributes[['z_min', 'z_max', 'y_min', 'y_max', 'x_min', 'x_max']].values,
-        np.array([[2, 8, 7, 13, 87, 93]])
+    # rounding incurs an error of up to one pixel
+    tol = 1
+    assert np.all(
+        np.abs(spot_attributes[['z_min', 'z_max', 'y_min', 'y_max', 'x_min', 'x_max']].values -
+               np.array([[2, 8, 7, 13, 87, 93]])) <= tol
     )
 
 

@@ -1,3 +1,4 @@
+from numbers import Number
 from itertools import product
 import numpy as np
 import pandas as pd
@@ -69,14 +70,16 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
     @staticmethod
     def _measure_blob_intensity(image, blobs, measurement_function) -> pd.Series:
 
-        def fn(row):
-            return measurement_function(
-                image[
-                    row['z_min']:row['z_max'],
-                    row['y_min']:row['y_max'],
-                    row['x_min']:row['x_max']
-                ]
-            )
+        def fn(row: pd.Series) -> Number:
+            row: pd.Series = row.astype(int)
+            result = measurement_function(
+                    image[
+                        row['z_min']:row['z_max'],
+                        row['y_min']:row['y_max'],
+                        row['x_min']:row['x_max']
+                    ]
+                )
+            return result
 
         return blobs.apply(
             fn,
@@ -85,24 +88,17 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
     def _measure_spot_intensities(self, stack, spot_attributes):
 
-        intensities = {}
-        indices = product(
-            range(stack.shape[Indices.CH]), range(stack.shape[Indices.HYB]))
-        for h, c in indices:
-            image, _ = stack.get_slice({Indices.CH: c, Indices.HYB: h})
-            blob_intensities = self._measure_blob_intensity(
-                image, spot_attributes, self.measurement_function)
-            intensities[h, c] = blob_intensities
-
         n_ch = stack.shape[Indices.CH]
         n_hyb = stack.shape[Indices.HYB]
-
         spot_attribute_index = dataframe_to_multiindex(spot_attributes)
         intensity_table = IntensityTable.empty_intensity_table(spot_attribute_index, n_ch, n_hyb)
 
-        for (ch, hyb), values in intensities.items():
-            # ch, hyb = tile_data.iloc[i, :]
-            intensity_table.loc[:, ch, hyb] = values
+        indices = product(range(n_ch), range(n_hyb))
+        for h, c in indices:
+            image, _ = stack.get_slice({Indices.CH: c, Indices.HYB: h})
+            blob_intensities: pd.Series = self._measure_blob_intensity(
+                image, spot_attributes, self.measurement_function)
+            intensity_table[:, h, c] = blob_intensities
 
         return intensity_table
 
@@ -119,7 +115,8 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
         fitted_blobs = pd.DataFrame(data=fitted_blobs_array, columns=['z', 'y', 'x', 'r'])
 
         # convert standard deviation of gaussian kernel used to identify spot to radius of spot
-        fitted_blobs['r'] = np.round(fitted_blobs['r'] * np.sqrt(3))
+        # TODO ambrosejcarr: this is wrong for 3d (should be sqrt3)
+        fitted_blobs['r'] = np.round(fitted_blobs['r'] * np.sqrt(2))
 
         # convert the array to int so it can be used to index
         fitted_blobs: pd.DataFrame = fitted_blobs.astype(int)
