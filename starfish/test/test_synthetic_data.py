@@ -14,7 +14,6 @@ def test_round_trip_synthetic_data():
         gray_level=1,
         ad_conversion_bits=16,
         point_spread_function=(2, 2, 2),
-        fill_dynamic_range=False
     )
 
     codebook = sd.codebook()

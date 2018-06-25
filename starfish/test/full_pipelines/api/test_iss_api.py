@@ -28,7 +28,7 @@ def test_iss_pipeline():
     min_sigma = 1.5
     max_sigma = 5
     num_sigma = 10
-    threshold = 0.01
+    threshold = 1e-4
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,

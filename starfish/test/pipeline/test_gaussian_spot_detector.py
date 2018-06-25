@@ -6,16 +6,21 @@ from starfish.test.dataset_fixtures import *
 def test_spots_match_coordinates_of_synthesized_spots(
         synthetic_dataset_with_truth_values_and_called_spots):
 
-    codebook, true_intensities, image, dots, intensities = (
+    codebook, true_intensities, image, intensities = (
         synthetic_dataset_with_truth_values_and_called_spots)
     assert true_intensities.shape == intensities.shape
 
-    assert sorted(true_intensities.coords['x'].values) == sorted(intensities.coords['x'].values)
-    assert sorted(true_intensities.coords['y'].values) == sorted(intensities.coords['y'].values)
+    # we do a bit of rounding, some of these may be off with 1-pixel error.
+    x_matches = np.all(np.abs(np.sort(true_intensities.coords['x'].values) -
+                              np.sort(intensities.coords['x'].values)) <= 1)
+    y_matches = np.all(np.abs(np.sort(true_intensities.coords['y'].values) -
+                              np.sort(intensities.coords['y'].values)) <= 1)
+    assert x_matches
+    assert y_matches
 
 
 def test_create_intensity_table(synthetic_dataset_with_truth_values_and_called_spots):
-    codebook, true_intensities, image, dots, intensities = (
+    codebook, true_intensities, image, intensities = (
         synthetic_dataset_with_truth_values_and_called_spots)
 
     assert intensities.shape[0] == 5
@@ -24,7 +29,7 @@ def test_create_intensity_table(synthetic_dataset_with_truth_values_and_called_s
 def test_create_intensity_table_raises_value_error_when_no_spots_detected(
         synthetic_dataset_with_truth_values_and_called_spots):
 
-    codebook, true_intensities, image, dots, intensities = (
+    codebook, true_intensities, image, intensities = (
         synthetic_dataset_with_truth_values_and_called_spots)
 
     min_sigma = 1
@@ -37,7 +42,7 @@ def test_create_intensity_table_raises_value_error_when_no_spots_detected(
         max_sigma=max_sigma,
         num_sigma=num_sigma,
         threshold=threshold,
-        blobs_stack=dots,
+        blobs_stack=image,
         measurement_type='max',
     )
     with pytest.raises(ValueError):

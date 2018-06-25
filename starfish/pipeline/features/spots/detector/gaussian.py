@@ -113,10 +113,10 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             self.overlap)
         # convert to DataFrame
 
-        fitted_blobs = pd.DataFrame(data=fitted_blobs_array, columns=['z', 'y', 'x', 'r'])
-
-        if fitted_blobs.shape[0] == 0:
+        if fitted_blobs_array.shape[0] == 0:
             raise ValueError('No spots detected with provided parameters')
+
+        fitted_blobs = pd.DataFrame(data=fitted_blobs_array, columns=['z', 'y', 'x', 'r'])
 
         # convert standard deviation of gaussian kernel used to identify spot to radius of spot
         fitted_blobs['r'] = np.round(fitted_blobs['r'] * np.sqrt(3))

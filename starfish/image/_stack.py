@@ -815,7 +815,6 @@ class ImageStack:
             cls, intensities, num_z, height, width, n_photons_background=1000,
             point_spread_function=(4, 2, 2), camera_detection_efficiency=0.25,
             background_electrons=1, graylevel: float=37000.0 / 2 ** 16, ad_conversion_bits=16,
-            fill_dynamic_range=True
         ) -> "ImageStack":
         """
 
@@ -842,21 +841,24 @@ class ImageStack:
             produce higher resolution images (default 37000 / 2 ** 16)
         ad_conversion_bits : int
             The number of bits used during analog to visual conversion (default 16)
-        fill_dynamic_range : bool
-            if True, expand the data to fill the dynamic range of the data type (default = True)
 
         Returns
         -------
 
         """
+        # check some params
+        if not 0 < camera_detection_efficiency <= 1:
+            raise ValueError(
+                f'invalid camera_detection_efficiency value: {camera_detection_efficiency}. '
+                f'Must be in the interval (0, 1].')
 
         def select_uint_dtype(array):
             """choose appropriate dtype based on values of an array"""
             max_val = np.max(array)
-            for dtype in [np.uint8, np.uint16, np.uint32, np.uint64]:
+            for dtype in [np.uint8, np.uint16, np.uint32]:
                 if max_val <= dtype(-1):
                     return array.astype(dtype)
-            raise ValueError('value exceeds dynamic range of largest numpy type')
+            raise ValueError('value exceeds dynamic range of largest skimage-supported type')
 
         # make sure requested dimensions are large enough to support intensity values
         indices = zip((Indices.Z, Coordinates.Y, Coordinates.X), (num_z, height, width))
@@ -894,13 +896,10 @@ class ImageStack:
         # mimic analog to digital conversion
         image = (image / graylevel).astype(int).clip(0, 2 ** ad_conversion_bits)
 
-        # find the right dtype for the synthetic intensities
-        if fill_dynamic_range:
-            image: np.ndarray = exposure.rescale_intensity(image)
-            image = np.clip(image, 0, a_max=None)
+        # clip in case we've picked up some negative values
+        image = np.clip(image, 0, a_max=None)
 
         # set correct dtype and convert to stack
-        # TODO ambrosejcarr: int64 is NOT ALLOWED here; causes bugs downstream
         image = select_uint_dtype(image)
         return cls.from_numpy_array(image)
 

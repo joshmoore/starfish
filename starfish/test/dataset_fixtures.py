@@ -140,7 +140,7 @@ def synthetic_intensity_table(loaded_codebook) -> IntensityTable:
 def synthetic_dataset_with_truth_values():
     from starfish.util.synthesize import SyntheticData
 
-    np.random.seed(3)
+    np.random.seed(2)
     synthesizer = SyntheticData(n_spots=5)
     codebook = synthesizer.codebook()
     true_intensities = synthesizer.intensities(codebook=codebook)
@@ -153,18 +153,16 @@ def synthetic_dataset_with_truth_values():
 def synthetic_dataset_with_truth_values_and_called_spots(
         synthetic_dataset_with_truth_values
 ):
-    np.random.seed(2)
 
     codebook, true_intensities, image = synthetic_dataset_with_truth_values
 
-    import pdb; pdb.set_trace()
     wth = WhiteTophat(disk_size=15)
     filtered = wth.filter(image, in_place=False)
 
     min_sigma = 1.5
-    max_sigma = 5
+    max_sigma = 4
     num_sigma = 10
-    threshold = 0.1
+    threshold = 1e-4
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,
@@ -175,7 +173,6 @@ def synthetic_dataset_with_truth_values_and_called_spots(
     )
 
     intensities = gsd.find(hybridization_image=filtered)
-    import pdb; pdb.set_trace()
     assert intensities.shape[0] == 5
 
     codebook.decode_euclidean(intensities)
@@ -237,6 +234,6 @@ def synthetic_spot_pass_through_stack(synthetic_dataset_with_truth_values):
     img_stack = ImageStack.synthetic_spots(
         true_intensities, num_z=12, height=50, width=45, n_photons_background=0,
         point_spread_function=(0, 0, 0), camera_detection_efficiency=1.0,
-        background_electrons=0, graylevel=1, fill_dynamic_range=False)
+        background_electrons=0, graylevel=1)
     return codebook, true_intensities, img_stack
 

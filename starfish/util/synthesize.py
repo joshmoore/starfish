@@ -24,7 +24,6 @@ class SyntheticData:
             ad_conversion_bits: int=16,
             mean_fluor_per_spot: int=200,
             mean_photons_per_fluor: int=50,
-            fill_dynamic_range: bool=True,
 
     ) -> None:
         self.n_hyb = n_hyb
@@ -42,7 +41,6 @@ class SyntheticData:
         self.ad_coversion_bits = ad_conversion_bits
         self.mean_fluor_per_spot = mean_fluor_per_spot
         self.mean_photons_per_fluor = mean_photons_per_fluor
-        self.fill_dynamic_range = fill_dynamic_range
 
     def codebook(self) -> Codebook:
         return Codebook.synthetic_one_hot_codebook(self.n_hyb, self.n_ch, self.n_codes)
@@ -60,5 +58,4 @@ class SyntheticData:
         return ImageStack.synthetic_spots(
             intensities, self.n_z, self.height, self.width, self.n_photons_background,
             self.point_spread_function, self.camera_detection_efficiency,
-            self.background_electrons, self.gray_level, self.ad_coversion_bits,
-            fill_dynamic_range=self.fill_dynamic_range)
+            self.background_electrons, self.gray_level, self.ad_coversion_bits)
