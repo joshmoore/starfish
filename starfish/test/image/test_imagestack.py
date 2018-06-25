@@ -199,5 +199,3 @@ def test_synthetic_spot_creation_produces_an_imagestack_with_correct_spot_locati
         image.numpy_array[c, h, z, y, x],
         true_intensities.values[np.where(true_intensities)])
 
-    # import pdb; pdb.set_trace()
-

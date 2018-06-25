@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from starfish.constants import Indices, AugmentedEnum, Coordinates
+from starfish.constants import Indices, AugmentedEnum
 
 
 class IntensityTable(xr.DataArray):
@@ -146,6 +146,7 @@ class IntensityTable(xr.DataArray):
         y = np.random.randint(0, height, size=n_spots)
         x = np.random.randint(0, width, size=n_spots)
         r = np.empty(n_spots)
+        r.fill(np.nan)  # radius is a function of the point-spread gaussian size
 
         names = [cls.SpotAttributes.Z.value, cls.SpotAttributes.Y.value,
                  cls.SpotAttributes.X.value, cls.SpotAttributes.RADIUS.value]

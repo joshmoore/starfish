@@ -3,7 +3,7 @@ import os
 from functools import partial
 from itertools import product
 from typing import Any, Callable, Iterable, Iterator, List, Mapping, MutableSequence, Optional, Sequence, Tuple, Union
-from warnings import warn
+import warnings
 from copy import deepcopy
 
 import numpy
@@ -97,7 +97,7 @@ class ImageStack:
                     src_range = numpy.iinfo(data.dtype).max - numpy.iinfo(data.dtype).min + 1
                     dst_range = numpy.iinfo(self._data.dtype).max - numpy.iinfo(self._data.dtype).min + 1
                     data = data * (dst_range / src_range)
-                warn(
+                warnings.warn(
                     f"Tile "
                     f"(H: {tile.indices[Indices.HYB]} C: {tile.indices[Indices.CH]} Z: {tile.indices[Indices.Z]}) has "
                     f"dtype {data.dtype}.  One or more tiles is of a larger dtype {self._data.dtype}.",
@@ -872,7 +872,12 @@ class ImageStack:
 
         for ch, hyb in product(*(range(s) for s in intensities.shape[1:])):
             spots = intensities[:, ch, hyb]
-            values = spots.where(spots, drop=True)
+
+            # numpy deprecated casting a specific way of casting floats that is triggered in xarray
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', FutureWarning)
+                values = spots.where(spots, drop=True)
+
             image[ch, hyb, values.z, values.y, values.x] = values
 
         # add imaging noise
@@ -891,11 +896,12 @@ class ImageStack:
 
         # find the right dtype for the synthetic intensities
         if fill_dynamic_range:
-            image = select_uint_dtype(image)
-            image = exposure.rescale_intensity(image)
+            image: np.ndarray = exposure.rescale_intensity(image)
             image = np.clip(image, 0, a_max=None)
 
-        # convert to a stack
+        # set correct dtype and convert to stack
+        # TODO ambrosejcarr: int64 is NOT ALLOWED here; causes bugs downstream
+        image = select_uint_dtype(image)
         return cls.from_numpy_array(image)
 
     def squeeze(self) -> numpy.ndarray:

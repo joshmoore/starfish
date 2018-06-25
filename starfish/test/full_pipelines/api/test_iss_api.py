@@ -8,7 +8,7 @@ from starfish.image import ImageStack
 
 
 def test_iss_pipeline():
-    np.random.seed(3)
+    np.random.seed(2)
     synthesizer = SyntheticData(n_spots=5)
     codebook = synthesizer.codebook()
     true_intensities = synthesizer.intensities(codebook=codebook)
@@ -26,9 +26,9 @@ def test_iss_pipeline():
     fsr.register(image)
 
     min_sigma = 1.5
-    max_sigma = 10
-    num_sigma = 30
-    threshold = 0.1
+    max_sigma = 5
+    num_sigma = 10
+    threshold = 0.01
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,

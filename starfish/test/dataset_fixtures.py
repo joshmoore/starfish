@@ -6,15 +6,16 @@ from copy import deepcopy
 
 import numpy as np
 import pandas as pd
-
 import pytest
 
-from starfish.io import Stack
 from starfish.constants import Indices
 from starfish.image import ImageStack
+from starfish.io import Stack
 from starfish.munge import dataframe_to_multiindex
 from starfish.pipeline.features.codebook import Codebook
 from starfish.pipeline.features.intensity_table import IntensityTable
+from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
+from starfish.pipeline.filter.white_tophat import WhiteTophat
 from starfish.util import synthesize
 
 
@@ -152,40 +153,37 @@ def synthetic_dataset_with_truth_values():
 def synthetic_dataset_with_truth_values_and_called_spots(
         synthetic_dataset_with_truth_values
 ):
-    from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
-    from starfish.pipeline.filter.white_tophat import WhiteTophat
+    np.random.seed(2)
 
     codebook, true_intensities, image = synthetic_dataset_with_truth_values
 
-    dots_data = image.max_proj(Indices.HYB, Indices.CH, Indices.Z)
-    dots = ImageStack.from_numpy_array(dots_data.reshape((1, 1, 1, *dots_data.shape)))
-
+    import pdb; pdb.set_trace()
     wth = WhiteTophat(disk_size=15)
-    wth.filter(image)
-    wth.filter(dots)
+    filtered = wth.filter(image, in_place=False)
 
     min_sigma = 1.5
-    max_sigma = 10
-    num_sigma = 30
+    max_sigma = 5
+    num_sigma = 10
     threshold = 0.1
     gsd = GaussianSpotDetector(
         min_sigma=min_sigma,
         max_sigma=max_sigma,
         num_sigma=num_sigma,
         threshold=threshold,
-        blobs_stack=dots,
+        blobs_stack=filtered,
         measurement_type='max',
     )
 
-    intensities = gsd.find(hybridization_image=image)
+    intensities = gsd.find(hybridization_image=filtered)
+    import pdb; pdb.set_trace()
     assert intensities.shape[0] == 5
 
     codebook.decode_euclidean(intensities)
 
-    return codebook, true_intensities, image, dots, intensities
+    return codebook, true_intensities, image, intensities
 
 
-@pytest.fixture
+@pytest.fixture()
 def synthetic_single_spot_2d():
     from scipy.ndimage.filters import gaussian_filter
     data = np.zeros((100, 100), dtype=np.uint16)
@@ -194,13 +192,44 @@ def synthetic_single_spot_2d():
     return data
 
 
-@pytest.fixture
-def synthetic_single_spot_imagestack(synthetic_single_spot_2d):
+@pytest.fixture()
+def synthetic_single_spot_3d():
+    from scipy.ndimage.filters import gaussian_filter
+    data = np.zeros((10, 100, 100), dtype=np.uint16)
+    data[5, 10, 90] = 1000
+    data = gaussian_filter(data, sigma=2)
+    return data
+
+
+@pytest.fixture()
+def synthetic_two_spot_3d():
+    from scipy.ndimage.filters import gaussian_filter
+    data = np.zeros((10, 100, 100), dtype=np.uint16)
+    data[4, 10, 90] = 1000
+    data[6, 90, 10] = 1000
+    data = gaussian_filter(data, sigma=2)
+    return data
+
+
+@pytest.fixture()
+def synthetic_single_spot_imagestack_2d(synthetic_single_spot_2d):
     data = synthetic_single_spot_2d
     return ImageStack.from_numpy_array(data.reshape(1, 1, 1, *data.shape))
 
 
-@pytest.fixture
+@pytest.fixture()
+def synthetic_single_spot_imagestack_3d(synthetic_single_spot_3d):
+    data = synthetic_single_spot_3d
+    return ImageStack.from_numpy_array(data.reshape(1, 1, *data.shape))
+
+
+@pytest.fixture()
+def synthetic_two_spot_imagestack_3d(synthetic_two_spot_3d):
+    data = synthetic_two_spot_3d
+    return ImageStack.from_numpy_array(data.reshape(1, 1, *data.shape))
+
+
+@pytest.fixture()
 def synthetic_spot_pass_through_stack(synthetic_dataset_with_truth_values):
     codebook, true_intensities, _ = synthetic_dataset_with_truth_values
     true_intensities = true_intensities[:2]
@@ -209,4 +238,5 @@ def synthetic_spot_pass_through_stack(synthetic_dataset_with_truth_values):
         true_intensities, num_z=12, height=50, width=45, n_photons_background=0,
         point_spread_function=(0, 0, 0), camera_detection_efficiency=1.0,
         background_electrons=0, graylevel=1, fill_dynamic_range=False)
+    return codebook, true_intensities, img_stack
 

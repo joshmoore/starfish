@@ -57,6 +57,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             self.blobs_stack = blobs_stack
         else:
             self.blobs_stack = ImageStack.from_path_or_url(blobs_stack)
+        self.blobs_image: np.ndarray = self.blobs_stack.max_proj(Indices.HYB, Indices.CH)
 
         try:
             self.measurement_function = getattr(np, measurement_type)
@@ -66,31 +67,32 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
                 f'not found.')
 
     @staticmethod
-    def _measure_blob_intensity(image, spots, measurement_function) -> pd.Series:
-        # todo these values are messed up
+    def _measure_blob_intensity(image, blobs, measurement_function) -> pd.Series:
+
         def fn(row):
-            x_min = int(round(row.x_min))
-            x_max = int(round(row.x_max))
-            y_min = int(round(row.y_min))
-            y_max = int(round(row.y_max))
-            z_min = int(round(row.z_min))
-            z_max = int(round(row.z_max))
-            return measurement_function(image[z_min:z_max, y_min:y_max, x_min:x_max])
-        return spots.apply(
+            return measurement_function(
+                image[
+                    row['z_min']:row['z_max'],
+                    row['y_min']:row['y_max'],
+                    row['x_min']:row['x_max']
+                ]
+            )
+
+        return blobs.apply(
             fn,
             axis=1
         )
 
     def _measure_spot_intensities(self, stack, spot_attributes):
-        tile_iterator = (
-            stack.get_slice({Indices.CH: c, Indices.HYB: h}) for h, c in
-            product(range(stack.shape[Indices.CH]),
-                    range(stack.shape[Indices.HYB])))
-        intensities = {
-            tile_data: self._measure_blob_intensity(
+
+        intensities = {}
+        indices = product(
+            range(stack.shape[Indices.CH]), range(stack.shape[Indices.HYB]))
+        for h, c in indices:
+            image, _ = stack.get_slice({Indices.CH: c, Indices.HYB: h})
+            blob_intensities = self._measure_blob_intensity(
                 image, spot_attributes, self.measurement_function)
-            for image, tile_data in tile_iterator
-        }
+            intensities[h, c] = blob_intensities
 
         n_ch = stack.shape[Indices.CH]
         n_hyb = stack.shape[Indices.HYB]
@@ -104,42 +106,36 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
         return intensity_table
 
-    def _find_spot_locations(self, blobs_image: np.ndarray) -> pd.DataFrame:
-
+    def _find_spot_locations(self) -> pd.DataFrame:
         # find blobs
         fitted_blobs_array: np.ndarray = blob_log(
-            blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold,
+            self.blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold,
             self.overlap)
         # convert to DataFrame
+
         fitted_blobs = pd.DataFrame(data=fitted_blobs_array, columns=['z', 'y', 'x', 'r'])
 
         if fitted_blobs.shape[0] == 0:
             raise ValueError('No spots detected with provided parameters')
 
         # convert standard deviation of gaussian kernel used to identify spot to radius of spot
-        fitted_blobs['r'] *= np.sqrt(3)
+        fitted_blobs['r'] = np.round(fitted_blobs['r'] * np.sqrt(3))
 
-        fitted_blobs[['z', 'y', 'x']] = fitted_blobs[['z', 'y', 'x']].astype(int)
+        # convert the array to int so it can be used to index
+        fitted_blobs: pd.DataFrame = fitted_blobs.astype(int)
 
-        fitted_blobs['x_min'] = np.clip(np.floor(fitted_blobs.x - fitted_blobs.r), 0, None)
-        fitted_blobs['x_max'] = np.clip(np.ceil(fitted_blobs.x + fitted_blobs.r),
-                                        None, blobs_image.shape[2])
-        fitted_blobs['y_min'] = np.clip(np.floor(fitted_blobs.y - fitted_blobs.r), 0, None)
-        fitted_blobs['y_max'] = np.clip(np.ceil(fitted_blobs.y + fitted_blobs.r),
-                                        None, blobs_image.shape[1])
-        fitted_blobs['z_min'] = np.clip(np.floor(fitted_blobs.z - fitted_blobs.r), 0, None)
-        fitted_blobs['z_max'] = np.clip(np.ceil(fitted_blobs.z + fitted_blobs.r),
-                                        None, blobs_image.shape[0])
+        for v, max_size in zip(['z', 'y', 'x'], self.blobs_image.shape):
+            fitted_blobs[f'{v}_min'] = np.clip(fitted_blobs[v] - fitted_blobs['r'], 0, None)
+            fitted_blobs[f'{v}_max'] = np.clip(fitted_blobs[v] + fitted_blobs['r'], None, max_size)
 
         fitted_blobs['intensity'] = self._measure_blob_intensity(
-            blobs_image, fitted_blobs, self.measurement_function)
+            self.blobs_image, fitted_blobs, self.measurement_function)
         fitted_blobs['spot_id'] = np.arange(fitted_blobs.shape[0])
 
         return fitted_blobs
 
     def find(self, hybridization_image) -> IntensityTable:
-        blobs = self.blobs_stack.max_proj(Indices.HYB, Indices.CH)
-        spot_attributes = self._find_spot_locations(blobs)
+        spot_attributes = self._find_spot_locations()
         intensity_table = self._measure_spot_intensities(hybridization_image, spot_attributes)
         return intensity_table
 
