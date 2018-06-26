@@ -39,7 +39,7 @@ def test_round_trip_synthetic_data():
     )
 
 
-@pytest.mark.skip('long-running integration test, for debugging only')
+# @pytest.mark.skip('long-running integration test, for debugging only')
 def test_medium_synthetic_stack():
     n_z = 40
     height = 300

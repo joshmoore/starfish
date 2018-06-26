@@ -1,6 +1,7 @@
 import functools
 import json
 from typing import Any, Dict, List, Optional, Sequence
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -380,7 +381,8 @@ class Codebook(xr.DataArray):
 
         # make a codebook from codewords
         if gene_names is None:
-            gene_names = np.arange(n_codes)
+            # use a reverse-sorted list of integers as codewords
+            gene_names = [uuid.uuid4() for _ in range(n_codes)]
         assert n_codes == len(gene_names)
 
         codebook = [{Codebook.Constants.CODEWORD.value: w, Codebook.Constants.GENE.value: g}
