@@ -1,13 +1,14 @@
-from typing import Tuple
-
+from numbers import Number
+from itertools import product
 import numpy as np
 import pandas as pd
 from skimage.feature import blob_log
 
 from starfish.constants import Indices
-from starfish.munge import melt
-from starfish.pipeline.features.encoded_spots import EncodedSpots
-from starfish.pipeline.features.spot_attributes import SpotAttributes
+from starfish.pipeline.features.intensity_table import IntensityTable
+from starfish.image import ImageStack
+from starfish.util.argparse import FsExistsType
+from starfish.munge import dataframe_to_multiindex
 from ._base import SpotFinderAlgorithmBase
 
 
@@ -15,7 +16,7 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
 
     def __init__(
             self, min_sigma, max_sigma, num_sigma, threshold,
-            blobs_image_name, overlap=0.5, measurement_type='max', **kwargs):
+            blobs_stack, overlap=0.5, measurement_type='max', is_volume: bool=True, **kwargs):
         """Multi-dimensional gaussian spot detector
 
         Parameters
@@ -35,8 +36,8 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
             intensities.
         overlap : float [0, 1]
             If two spots have more than this fraction of overlap, the spots are combined (default = 0.5)
-        blobs_image_name : str
-            name of the image containing blobs. Must be present in the auxiliary_images of the Stack passed to `find`
+        blobs_stack : Union[ImageStack, str]
+            ImageStack or the path or URL that references the ImageStack that contains the blobs.
         measurement_type : str ['max', 'mean']
             name of the function used to calculate the intensity for each identified spot area
 
@@ -52,7 +53,12 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
         self.num_sigma = num_sigma
         self.threshold = threshold
         self.overlap = overlap
-        self.blobs = blobs_image_name
+        self.is_volume = is_volume
+        if isinstance(blobs_stack, ImageStack):
+            self.blobs_stack = blobs_stack
+        else:
+            self.blobs_stack = ImageStack.from_path_or_url(blobs_stack)
+        self.blobs_image: np.ndarray = self.blobs_stack.max_proj(Indices.HYB, Indices.CH)
 
         try:
             self.measurement_function = getattr(np, measurement_type)
@@ -62,80 +68,86 @@ class GaussianSpotDetector(SpotFinderAlgorithmBase):
                 f'not found.')
 
     @staticmethod
-    def measure_blob_intensity(image, spots, measurement_function) -> pd.Series:
-        def fn(row):
-            x_min = int(round(row.x_min))
-            x_max = int(round(row.x_max))
-            y_min = int(round(row.y_min))
-            y_max = int(round(row.y_max))
-            return measurement_function(image[x_min:x_max, y_min:y_max])
-        return spots.apply(
+    def _measure_blob_intensity(image, blobs, measurement_function) -> pd.Series:
+
+        def fn(row: pd.Series) -> Number:
+            row: pd.Series = row.astype(int)
+            result = measurement_function(
+                    image[
+                        row['z_min']:row['z_max'],
+                        row['y_min']:row['y_max'],
+                        row['x_min']:row['x_max']
+                    ]
+                )
+            return result
+
+        return blobs.apply(
             fn,
             axis=1
         )
 
-    def encode(self, stack, spot_attributes):
-        # create stack squeeze map
-        squeezed = stack.squeeze()
-        mapping: pd.DataFrame = stack.image.tile_metadata
-        inds = range(mapping.shape[0])
-        intensities = [
-            self.measure_blob_intensity(image, spot_attributes, self.measurement_function)
-            for image in squeezed
-        ]
-        d = dict(zip(inds, intensities))
-        d['spot_id'] = range(spot_attributes.shape[0])
+    def _measure_spot_intensities(self, stack, spot_attributes):
 
-        res = pd.DataFrame(d)
+        n_ch = stack.shape[Indices.CH]
+        n_hyb = stack.shape[Indices.HYB]
+        spot_attribute_index = dataframe_to_multiindex(spot_attributes)
+        intensity_table = IntensityTable.empty_intensity_table(spot_attribute_index, n_ch, n_hyb)
 
-        res: pd.DataFrame = melt(
-            df=res,
-            new_index_name='barcode_index',
-            new_value_name='intensity',
-            melt_columns=inds
-        )
-        res = pd.merge(res, mapping, on='barcode_index', how='left')
-        return EncodedSpots(res)
+        indices = product(range(n_ch), range(n_hyb))
+        for h, c in indices:
+            image, _ = stack.get_slice({Indices.CH: c, Indices.HYB: h})
+            blob_intensities: pd.Series = self._measure_blob_intensity(
+                image, spot_attributes, self.measurement_function)
+            intensity_table[:, h, c] = blob_intensities
 
-    def fit(self, blobs_image):
-        fitted_blobs = pd.DataFrame(
-            data=blob_log(blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold, self.overlap),
-            columns=['x', 'y', 'r'],
-        )
+        return intensity_table
 
-        # TODO ambrosejcarr: why is this necessary? (check docs)
-        fitted_blobs['r'] *= np.sqrt(2)
-        fitted_blobs[['x', 'y']] = fitted_blobs[['x', 'y']].astype(int)
+    def _find_spot_locations(self) -> pd.DataFrame:
+        # find blobs
+        fitted_blobs_array: np.ndarray = blob_log(
+            self.blobs_image, self.min_sigma, self.max_sigma, self.num_sigma, self.threshold,
+            self.overlap)
+        # convert to DataFrame
 
-        fitted_blobs['x_min'] = np.clip(np.floor(fitted_blobs.x - fitted_blobs.r), 0, None)
-        fitted_blobs['x_max'] = np.clip(np.ceil(fitted_blobs.x + fitted_blobs.r), None, blobs_image.shape[0])
-        fitted_blobs['y_min'] = np.clip(np.floor(fitted_blobs.y - fitted_blobs.r), 0, None)
-        fitted_blobs['y_max'] = np.clip(np.ceil(fitted_blobs.y + fitted_blobs.r), None, blobs_image.shape[1])
+        if fitted_blobs_array.shape[0] == 0:
+            raise ValueError('No spots detected with provided parameters')
 
-        # TODO ambrosejcarr this should be barcode intensity or position intensity
-        fitted_blobs['intensity'] = self.measure_blob_intensity(blobs_image, fitted_blobs, self.measurement_function)
+        fitted_blobs = pd.DataFrame(data=fitted_blobs_array, columns=['z', 'y', 'x', 'r'])
+
+        # convert standard deviation of gaussian kernel used to identify spot to radius of spot
+        # TODO ambrosejcarr: this is wrong for 3d (should be sqrt3)
+        fitted_blobs['r'] = np.round(fitted_blobs['r'] * np.sqrt(2))
+
+        # convert the array to int so it can be used to index
+        fitted_blobs: pd.DataFrame = fitted_blobs.astype(int)
+
+        for v, max_size in zip(['z', 'y', 'x'], self.blobs_image.shape):
+            fitted_blobs[f'{v}_min'] = np.clip(fitted_blobs[v] - fitted_blobs['r'], 0, None)
+            fitted_blobs[f'{v}_max'] = np.clip(fitted_blobs[v] + fitted_blobs['r'], None, max_size)
+
+        fitted_blobs['intensity'] = self._measure_blob_intensity(
+            self.blobs_image, fitted_blobs, self.measurement_function)
         fitted_blobs['spot_id'] = np.arange(fitted_blobs.shape[0])
 
-        return SpotAttributes(fitted_blobs)
+        return fitted_blobs
 
-    def find(self, image_stack) -> Tuple[SpotAttributes, EncodedSpots]:
-        blobs = image_stack.auxiliary_images[self.blobs].max_proj(Indices.HYB, Indices.CH, Indices.Z)
-        spot_attributes = self.fit(blobs)
-        encoded_spots = self.encode(image_stack, spot_attributes.data)
-        return spot_attributes, encoded_spots
+    def find(self, hybridization_image) -> IntensityTable:
+        spot_attributes = self._find_spot_locations()
+        intensity_table = self._measure_spot_intensities(hybridization_image, spot_attributes)
+        return intensity_table
 
     @classmethod
     def get_algorithm_name(cls):
-        return 'gaussian_spot_detector'
+        return 'GaussianSpotDetector'
 
     @classmethod
     def add_arguments(cls, group_parser):
-        group_parser.add_argument("--blobs-image-name", type=str, help='aux image key')
+        group_parser.add_argument("--blobs-stack", type=FsExistsType(), required=True)
         group_parser.add_argument(
             "--min-sigma", default=4, type=int, help="Minimum spot size (in standard deviation)")
         group_parser.add_argument(
             "--max-sigma", default=6, type=int, help="Maximum spot size (in standard deviation)")
-        group_parser.add_argument("--num-sigma", default=20, type=int, help="Number of scales to try")
+        group_parser.add_argument("--num-sigma", default=20, type=int, help="Number of sigmas to try")
         group_parser.add_argument("--threshold", default=.01, type=float, help="Dots threshold")
         group_parser.add_argument(
             "--overlap", default=0.5, type=float, help="dots with overlap of greater than this fraction are combined")

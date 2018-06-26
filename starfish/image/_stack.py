@@ -2,14 +2,17 @@ import collections
 import os
 from functools import partial
 from itertools import product
-from typing import Any, Callable, Iterable, Iterator, Mapping, MutableSequence, Optional, Sequence, Tuple, Union
-from warnings import warn
+from typing import Any, Callable, Iterable, Iterator, List, Mapping, MutableSequence, Optional, Sequence, Tuple, Union
+import warnings
+from copy import deepcopy
 
 import numpy
+import numpy as np
 import pandas as pd
 from scipy.stats import scoreatpercentile
 from skimage import exposure
-from slicedimage import Reader, Writer
+from scipy.ndimage.filters import gaussian_filter
+from slicedimage import Reader, Writer, TileSet, Tile
 from slicedimage.io import resolve_path_or_url
 from tqdm import tqdm
 
@@ -94,7 +97,7 @@ class ImageStack:
                     src_range = numpy.iinfo(data.dtype).max - numpy.iinfo(data.dtype).min + 1
                     dst_range = numpy.iinfo(self._data.dtype).max - numpy.iinfo(self._data.dtype).min + 1
                     data = data * (dst_range / src_range)
-                warn(
+                warnings.warn(
                     f"Tile "
                     f"(H: {tile.indices[Indices.HYB]} C: {tile.indices[Indices.CH]} Z: {tile.indices[Indices.Z]}) has "
                     f"dtype {data.dtype}.  One or more tiles is of a larger dtype {self._data.dtype}.",
@@ -432,7 +435,7 @@ class ImageStack:
     def _iter_tiles(
             self, indices: Iterable[Mapping[Indices, Union[int, slice]]]
     ) -> Iterable[numpy.ndarray]:
-        """Given an iterable of indices, return a generator of numpy arrays from self.image
+        """Given an iterable of indices, return a generator of numpy arrays from self
 
         Parameters
         ----------
@@ -448,7 +451,7 @@ class ImageStack:
             array, axes = self.get_slice(inds)
             yield array
 
-    def apply(self, func, is_volume=False, in_place=True, verbose: bool=False, **kwargs):
+    def apply(self, func, is_volume=False, in_place=True, verbose: bool=False, **kwargs) -> "ImageStack":
         """Apply func over all tiles or volumes in self
 
         Parameters
@@ -460,8 +463,7 @@ class ImageStack:
             (default False) If True, pass 3d volumes (x, y, z) to func
         in_place : bool
             (default True) If True, function is executed in place. If n_proc is not 1, the tile or
-            volume will be copied once during execution. If false, the outputs of the function executed on individual
-            tiles or volumes will be output as a list
+            volume will be copied once during execution. If false, a new ImageStack object will be produced.
         verbose : bool
             If True, report on the percentage completed (default = False) during processing
         kwargs : dict
@@ -469,9 +471,14 @@ class ImageStack:
 
         Returns
         -------
-        Optional[List[Tuple[np.ndarray, Mapping[Indices: Union[int, slice]]]]
-            If inplace is False, return the results of applying func to stored image data
+        ImageStack :
+            If inplace is False, return a new ImageStack, otherwise return a reference to the original stack with
+            data modified by application of func
         """
+        if not in_place:
+            image_stack = deepcopy(self)
+            return image_stack.apply(func, is_volume=is_volume, in_place=True, verbose=verbose, **kwargs)
+
         mapfunc: Callable = map  # TODO: ambrosejcarr posix-compliant multiprocessing
         indices = list(self._iter_indices(is_volume=is_volume))
 
@@ -483,12 +490,43 @@ class ImageStack:
         applyfunc: Callable = partial(func, **kwargs)
         results = mapfunc(applyfunc, tiles)
 
-        # TODO ttung: this should return an ImageStack, not a bunch of indices.
-        if not in_place:
-            return list(zip(results, indices))
-
         for r, inds in zip(results, indices):
             self.set_slice(inds, r)
+
+        return self
+
+    def transform(self, func, is_volume=False, verbose=False, **kwargs) -> List[Any]:
+        """Apply func over all tiles or volumes in self
+
+        Parameters
+        ----------
+        func : Callable
+            Function to apply. must expect a first argument which is a 2d or 3d numpy array (see is_volume) but
+            may return any object type
+        is_volume : bool
+            (default False) If True, pass 3d volumes (x, y, z) to func
+        verbose : bool
+            If True, report on the percentage completed (default = False) during processing
+        kwargs : dict
+            Additional arguments to pass to func being applied
+
+        Returns
+        -------
+        List[Any] :
+            The results of applying func to stored image data
+        """
+        mapfunc: Callable = map
+        indices = list(self._iter_indices(is_volume=is_volume))
+
+        if verbose:
+            tiles = tqdm(self._iter_tiles(indices))
+        else:
+            tiles = self._iter_tiles(indices)
+
+        applyfunc: Callable = partial(func, **kwargs)
+        results = mapfunc(applyfunc, tiles)
+
+        return list(zip(results, indices))
 
     @property
     def tile_metadata(self) -> pd.DataFrame:
@@ -654,7 +692,7 @@ class ImageStack:
             pretty=True,
             tile_opener=tile_opener)
 
-    def max_proj(self, *dims: Indices) -> numpy.ndarray:
+    def max_proj(self, *dims: Indices) -> np.ndarray:
         """return a max projection over one or more axis of the image tensor
 
         Parameters
@@ -669,6 +707,10 @@ class ImageStack:
 
         """
         axes = list()
+
+        # preserve data's type
+        dtype = self.numpy_array.dtype
+
         for dim in dims:
             try:
                 axes.append(ImageStack.AXES_MAP[dim])
@@ -676,4 +718,242 @@ class ImageStack:
                 raise ValueError(
                     "Dimension: {} not supported. Expecting one of: {}".format(dim, ImageStack.AXES_MAP.keys()))
 
-        return numpy.max(self._data, axis=tuple(axes))
+        max_projection = numpy.max(self._data, axis=tuple(axes)).astype(dtype)
+        return max_projection
+
+    @staticmethod
+    def _from_synthetic_intensities_tile_provider(
+            hyb: int, ch: int, z: int, height: int, width: int) -> np.ndarray:
+        """Returns tiles that result from convolving spot intensities with a point spread function
+
+        Parameters
+        ----------
+        hyb
+        ch
+        z
+        height
+        width
+
+        Returns
+        -------
+
+        """
+
+    @staticmethod
+    def _default_tile_extras_provider(hyb: int, ch: int, z: int) -> Any:
+        """
+        Returns None for extras for any given hyb/ch/z.
+        """
+        return None
+
+    @staticmethod
+    def _default_tile_data_provider(hyb: int, ch: int, z: int, height: int, width: int) -> np.ndarray:
+        """
+        Returns a tile of just ones for any given hyb/ch/z.
+        """
+        return np.ones((height, width))
+
+    @classmethod
+    def synthetic_stack(
+            cls,
+            num_hyb: int=4,
+            num_ch: int=4,
+            num_z: int=12,
+            tile_height: int=50,
+            tile_width: int=40,
+            tile_data_provider: Callable[[int, int, int, int, int], np.ndarray]=None,
+            tile_extras_provider: Callable[[int, int, int], Any]=None,
+    ) -> "ImageStack":
+        """generate a synthetic ImageStack
+
+        Returns
+        -------
+        ImageStack :
+            imagestack containing a tensor whose default shape is (2, 3, 4, 30, 20)
+            and whose default values are all 1.
+
+        """
+        if tile_data_provider is None:
+            tile_data_provider = cls._default_tile_data_provider
+        if tile_extras_provider is None:
+            tile_extras_provider = cls._default_tile_extras_provider
+
+        img = TileSet(
+            {Coordinates.X, Coordinates.Y, Indices.HYB, Indices.CH, Indices.Z},
+            {
+                Indices.HYB: num_hyb,
+                Indices.CH: num_ch,
+                Indices.Z: num_z,
+            },
+            default_tile_shape=(tile_height, tile_width),
+        )
+        for hyb in range(num_hyb):
+            for ch in range(num_ch):
+                for z in range(num_z):
+                    tile = Tile(
+                        {
+                            Coordinates.X: (0.0, 0.001),
+                            Coordinates.Y: (0.0, 0.001),
+                            Coordinates.Z: (0.0, 0.001),
+                        },
+                        {
+                            Indices.HYB: hyb,
+                            Indices.CH: ch,
+                            Indices.Z: z,
+                        },
+                        extras=tile_extras_provider(hyb, ch, z),
+                    )
+                    tile.numpy_array = tile_data_provider(hyb, ch, z, tile_height, tile_width)
+
+                    img.add_tile(tile)
+
+        stack = cls(img)
+        return stack
+
+    @classmethod
+    def synthetic_spots(
+            cls, intensities, num_z, height, width, n_photons_background=1000,
+            point_spread_function=(4, 2, 2), camera_detection_efficiency=0.25,
+            background_electrons=1, graylevel: float=37000.0 / 2 ** 16, ad_conversion_bits=16,
+        ) -> "ImageStack":
+        """
+
+        Parameters
+        ----------
+        intensities
+        num_z
+        height
+        width
+        n_photons_background : int
+            Number of background photons to add to the image -- set to 0 to eliminate background
+            (default 1000)
+        point_spread_function : Tuple[int]
+            The width of the gaussian density wherein photons spread around their light source.
+            Set to zero to eliminate this (default (4, 2, 2))
+        camera_detection_efficiency : float
+            The efficiency of the camera to detect light. Set to 1 to remove this filter (default
+            0.25)
+        background_electrons : int
+            The number of spurious electrons detected during image capture by the camera (default
+            1)
+        graylevel : float
+            The number of shades of gray displayable by the synthetic camera. Larger numbers will
+            produce higher resolution images (default 37000 / 2 ** 16)
+        ad_conversion_bits : int
+            The number of bits used during analog to visual conversion (default 16)
+
+        Returns
+        -------
+
+        """
+        # check some params
+        if not 0 < camera_detection_efficiency <= 1:
+            raise ValueError(
+                f'invalid camera_detection_efficiency value: {camera_detection_efficiency}. '
+                f'Must be in the interval (0, 1].')
+
+        def select_uint_dtype(array):
+            """choose appropriate dtype based on values of an array"""
+            max_val = np.max(array)
+            for dtype in [np.uint8, np.uint16, np.uint32]:
+                if max_val <= dtype(-1):
+                    return array.astype(dtype)
+            raise ValueError('value exceeds dynamic range of largest skimage-supported type')
+
+        # make sure requested dimensions are large enough to support intensity values
+        indices = zip((Indices.Z, Coordinates.Y, Coordinates.X), (num_z, height, width))
+        for index, requested_size in indices:
+            required_size = intensities.coords[index.value].values.max()
+            if required_size > requested_size:
+                raise ValueError(
+                    f'locations of intensities contained in table exceed the size of requested '
+                    f'dimension {index.value}. Required size {required_size} > {requested_size}.')
+
+        # create an empty array of the correct size
+        image = np.zeros(intensities.shape[1:] + (num_z, height, width))
+
+        for ch, hyb in product(*(range(s) for s in intensities.shape[1:])):
+            spots = intensities[:, ch, hyb]
+
+            # numpy deprecated casting a specific way of casting floats that is triggered in xarray
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', FutureWarning)
+                values = spots.where(spots, drop=True)
+
+            image[ch, hyb, values.z, values.y, values.x] = values
+
+        # add imaging noise
+        image += np.random.poisson(n_photons_background, size=image.shape)
+
+        # blur image over coordinates, but not over hyb/channels (dim 0, 1)
+        sigma = (0, 0) + point_spread_function
+        image = gaussian_filter(image, sigma=sigma, mode='nearest')
+
+        image *= camera_detection_efficiency
+
+        image += np.random.normal(scale=background_electrons, size=image.shape)
+
+        # mimic analog to digital conversion
+        image = (image / graylevel).astype(int).clip(0, 2 ** ad_conversion_bits)
+
+        # clip in case we've picked up some negative values
+        image = np.clip(image, 0, a_max=None)
+
+        # set correct dtype and convert to stack
+        image = select_uint_dtype(image)
+        return cls.from_numpy_array(image)
+
+    def squeeze(self) -> numpy.ndarray:
+        """return an array that is linear over categorical dimensions and z
+
+        Returns
+        -------
+        np.ndarray :
+            array of shape (num_hybs + num_channels + num_z_layers, x, y).
+
+        """
+        first_dim = self.num_hybs * self.num_chs * self.num_zlayers
+        new_shape = (first_dim,) + self.tile_shape
+        new_data = self.numpy_array.reshape(new_shape)
+
+        return new_data
+
+    def un_squeeze(self, stack):
+        if type(stack) is list:
+            stack = numpy.array(stack)
+
+        new_shape = (self.num_hybs, self.num_chs, self.num_zlayers) + self.tile_shape
+        res = stack.reshape(new_shape)
+        return res
+
+    @classmethod
+    def from_numpy_array(cls, array: np.ndarray) -> "ImageStack":
+        """
+
+        Parameters
+        ----------
+        array : np.ndarray
+            5-d tensor of shape (n_hyb, n_ch, n_z, x, y)
+
+        Returns
+        -------
+        ImageStack :
+            array data stored as an ImageStack
+
+        """
+        if not len(array.shape) == 5:
+            raise ValueError('a 5-d tensor with shape (n_hyb, n_ch, n_z, x, y) must be provided.')
+        n_hyb, n_ch, n_z, height, width = array.shape
+        empty = cls.synthetic_stack(
+            num_hyb=n_hyb, num_ch=n_ch, num_z=n_z, tile_height=height, tile_width=width)
+
+        # preserve original dtype
+        empty._data = empty._data.astype(array.dtype)
+
+        for h in np.arange(n_hyb):
+            for c in np.arange(n_ch):
+                for z in np.arange(n_z):
+                    view = array[h, c, z]
+                    empty.set_slice({Indices.HYB: h, Indices.CH: c, Indices.Z: z}, view)
+
+        return empty

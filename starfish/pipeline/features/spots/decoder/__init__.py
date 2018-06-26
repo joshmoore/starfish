@@ -34,7 +34,6 @@ class Decoder(PipelineComponent):
     @classmethod
     def _cli(cls, args, print_help=False):
         """Runs the decoder component based on parsed arguments."""
-        import pandas
 
         if args.decoder_algorithm_class is None or print_help:
             cls.decoder_group.print_help()
@@ -42,9 +41,9 @@ class Decoder(PipelineComponent):
 
         instance = args.decoder_algorithm_class(**vars(args))
 
-        encoded = pandas.read_json(args.input, orient="records")
-        codebook = pandas.read_json(args.codebook, orient="records")
+        # encoded = pandas.read_json(args.input, orient="records")
+        # codebook = pandas.read_json(args.codebook, orient="records")
 
-        results = instance.decode(encoded, codebook)
+        results = instance.decode_euclidean(encoded, codebook)
         print("Writing | spot_id | gene_id to: {}".format(args.output))
         results.save(args.output)

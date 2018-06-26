@@ -1,19 +1,44 @@
 from starfish.pipeline.features.spots.detector.gaussian import GaussianSpotDetector
 from starfish.pipeline.filter.white_tophat import WhiteTophat
 from starfish.pipeline.registration.fourier_shift import FourierShiftRegistration
-from starfish.test.dataset_fixtures import labeled_synthetic_dataset
+from starfish.util.synthesize import SyntheticData
+import numpy as np
+from starfish.constants import Indices
+from starfish.image import ImageStack
 
 
-def test_merfish_pipeline():
-    stack = labeled_synthetic_dataset()
+def test_iss_pipeline():
+    np.random.seed(2)
+    synthesizer = SyntheticData(n_spots=5)
+    codebook = synthesizer.codebook()
+    true_intensities = synthesizer.intensities(codebook=codebook)
+    image = synthesizer.spots(intensities=true_intensities)
 
-    fsr = FourierShiftRegistration(upsampling=1000)
-    fsr.register(stack)
+    dots_data = image.max_proj(Indices.HYB, Indices.CH, Indices.Z)
+    dots = ImageStack.from_numpy_array(dots_data.reshape((1, 1, 1, *dots_data.shape)))
 
+    # todo the synthetic data looks weird in 3d, look into it.
     wth = WhiteTophat(disk_size=15)
-    wth.filter(stack)
+    wth.filter(image)
+    wth.filter(dots)
 
-    gsd = GaussianSpotDetector(blobs_image_name='dots', min_sigma=2, max_sigma=10, num_sigma=10, threshold=0.1)
-    spot_attributes, encoded_spots = gsd.find(stack)
+    fsr = FourierShiftRegistration(upsampling=1000, reference_stack=dots)
+    fsr.register(image)
 
-    assert spot_attributes.data.shape[0] == 19
+    min_sigma = 1.5
+    max_sigma = 5
+    num_sigma = 10
+    threshold = 1e-4
+    gsd = GaussianSpotDetector(
+        min_sigma=min_sigma,
+        max_sigma=max_sigma,
+        num_sigma=num_sigma,
+        threshold=threshold,
+        blobs_stack=dots,
+        measurement_type='max',
+    )
+
+    intensities = gsd.find(hybridization_image=image)
+    assert intensities.shape[0] == 5
+
+    codebook.decode_euclidean(intensities)
