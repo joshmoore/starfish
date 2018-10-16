@@ -1,4 +1,5 @@
 # You should not edit this file directly.  Instead, you should edit one of the following files (REQUIREMENTS.txt.in) and run make REQUIREMENTS.txt
+anndata==0.6.10
 atomicwrites==1.2.1
 attrs==18.2.0
 certifi==2018.8.24
@@ -9,11 +10,14 @@ cycler==0.10.0
 dask==0.19.2
 decorator==4.3.0
 diskcache==3.0.6
+h5py==2.8.0
 idna==2.7
 jsonschema==2.6.0
 kiwisolver==1.0.1
+loompy==2.0.14
 matplotlib==2.2.3
 more-itertools==4.3.0
+natsort==5.4.1
 networkx==2.1
 numpy==1.15.1
 packaging==17.1
