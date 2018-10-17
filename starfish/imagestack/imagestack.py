@@ -19,7 +19,12 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.stats import scoreatpercentile
 from skimage import exposure
 from skimage import img_as_float32, img_as_uint
-from slicedimage import Reader, TileSet, Writer
+from slicedimage import (
+    ImageFormat,
+    Reader,
+    TileSet,
+    Writer,
+)
 from slicedimage.io import resolve_path_or_url
 from tqdm import tqdm
 
@@ -835,13 +840,22 @@ class ImageStack:
     def tile_shape(self):
         return self._tile_shape
 
-    def write(self, filepath: str, tile_opener=None) -> None:
+    def write(self,
+              filepath: str,
+              indices: Mapping[Indices, Union[int, slice]]=None,
+              tile_format: ImageFormat=ImageFormat.NUMPY,
+              tile_opener=None) -> None:
         """write the image tensor to disk in spaceTx format
 
         Parameters
         ----------
         filepath : str
             Path + prefix for the images and primary_images.json written by this function
+        indices : Mapping[Indices, Union[int, slice]],
+            Indices to select a volume to write. Passed to `Image.get_slice()`.
+            See `Image.get_slice()` for examples.
+        tile_format : ImageFormat
+            Format in which each 2D plane should be written.
         tile_opener : TODO ttung: doc me.
 
         """
@@ -902,6 +916,7 @@ class ImageStack:
             self._image_partition,
             filepath,
             pretty=True,
+            tile_format=tile_format,
             tile_opener=tile_opener)
 
     def max_proj(self, *dims: Indices) -> np.ndarray:

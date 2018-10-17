@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import xarray as xr
+from slicedimage import ImageFormat
 
 from starfish.imagestack.imagestack import ImageStack
 from starfish.intensity_table.intensity_table import IntensityTable
@@ -239,3 +240,16 @@ def test_imagestack_to_intensity_table_no_noise(synthetic_spot_pass_through_stac
     pixel_intensities = codebook.metric_decode(
         pixel_intensities, max_distance=0, min_intensity=1000, norm_order=2)
     assert isinstance(pixel_intensities, IntensityTable)
+
+
+def test_imagestack_to_ome_tiff(tmpdir):
+    """
+    Retrieve a slice across one of the indices at the end. Save the slice out
+    to TIFF files and write an OME-XML metadata file to tie them together.
+    """
+    # Low-contract warnings from skimage
+    with pytest.warns(UserWarning):
+        stack = ImageStack.synthetic_stack()
+        stack_json = tmpdir / "output.json"
+        stack.write(str(stack_json), tile_format=ImageFormat.TIFF)
+        assert ImageStack.from_path_or_url(str(stack_json))
